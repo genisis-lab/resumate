@@ -1,4 +1,26 @@
 import { Resume, SectionKey } from "../types/resume"
+import { wordCount } from "./resumeText"
+
+// A small set of common soft skills. Used to nudge candidates whose Skills
+// section is all soft skills to add concrete hard/technical skills too.
+const SOFT_SKILLS = [
+  "communication",
+  "teamwork",
+  "leadership",
+  "problem solving",
+  "problem-solving",
+  "time management",
+  "adaptability",
+  "collaboration",
+  "creativity",
+  "organization",
+  "detail oriented",
+  "detail-oriented",
+  "work ethic",
+  "interpersonal",
+  "motivated",
+  "flexible",
+]
 
 const WEAK_VERBS = [
   "responsible for",
@@ -48,6 +70,46 @@ export function qualityFlags(r: Resume): QualityFlag[] {
       severity: "info",
       text: `${longBullets.length} bullet${longBullets.length > 1 ? "s are" : " is"} very long. Keep each to ~1–2 lines for readability.`,
     })
+
+  // First-person pronouns read poorly on resumes.
+  const firstPerson = allBullets.filter((b) => /\b(i|me|my|myself)\b/i.test(b)).length
+  if (firstPerson)
+    flags.push({
+      severity: "info",
+      text: `${firstPerson} bullet${firstPerson > 1 ? "s use" : " uses"} first-person words (I, me, my). Drop them and lead with action verbs.`,
+    })
+
+  // Overall length / readability.
+  const wc = wordCount(r)
+  if (wc > 0 && wc < 200)
+    flags.push({
+      severity: "info",
+      text: `Your resume is short (${wc} words). Add more achievement detail to better fill one page.`,
+    })
+  if (wc > 900)
+    flags.push({
+      severity: "warn",
+      text: `Your resume is long (${wc} words). Aim for one page (~250–850 words) unless you have 10+ years' experience.`,
+    })
+  const avgWords = allBullets.length
+    ? allBullets.reduce((n, b) => n + b.split(/\s+/).filter(Boolean).length, 0) / allBullets.length
+    : 0
+  if (avgWords > 26)
+    flags.push({
+      severity: "info",
+      text: "Bullets average quite long. Tighten wording so each reads in one glance.",
+    })
+
+  // Hard vs soft skill balance.
+  const allSkills = r.skills.flatMap((g) => g.items).filter(Boolean)
+  if (allSkills.length) {
+    const soft = allSkills.filter((s) => SOFT_SKILLS.includes(s.toLowerCase().trim()))
+    if (soft.length && soft.length === allSkills.length)
+      flags.push({
+        severity: "warn",
+        text: "Your skills are all soft skills. Add concrete hard/technical skills (tools, languages, platforms) that match the job.",
+      })
+  }
 
   return flags
 }
