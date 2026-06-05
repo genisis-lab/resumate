@@ -1,6 +1,12 @@
 // Core resume data model — single source of truth for the whole app.
 
-export type TemplateId = "modern" | "classic" | "minimal" | "ats"
+export type TemplateId =
+  | "modern"
+  | "classic"
+  | "minimal"
+  | "ats"
+  | "twocolumn"
+  | "creative"
 
 export type SectionKey =
   | "summary"
@@ -64,10 +70,14 @@ export interface SkillGroup {
   items: string[]
 }
 
+export type Density = "compact" | "cozy" | "roomy"
+
 export interface ResumeSettings {
   template: TemplateId
   accent: string
   fontScale: number // 0.9 - 1.15
+  // Optional vertical spacing preset. Undefined behaves like "cozy".
+  density?: Density
   sectionOrder: SectionKey[]
   hidden: SectionKey[]
 }
