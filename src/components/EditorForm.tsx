@@ -1,5 +1,7 @@
+import { useState } from "react"
 import { Resume, SectionKey, SECTION_LABELS } from "../types/resume"
 import { uid } from "../lib/id"
+import { aiGenerateSummary } from "../lib/ai"
 import {
   BulletEditor,
   Collapsible,
@@ -17,6 +19,8 @@ export function EditorForm({
   setResume: (r: Resume | ((prev: Resume) => Resume)) => void
 }) {
   const update: Setter = (updater) => setResume((prev) => updater(prev))
+  const [writingSummary, setWritingSummary] = useState(false)
+  const [summaryErr, setSummaryErr] = useState("")
 
   function moveArr<T>(arr: T[], i: number, dir: -1 | 1): T[] {
     const j = i + dir
@@ -24,6 +28,31 @@ export function EditorForm({
     const next = [...arr]
     ;[next[i], next[j]] = [next[j], next[i]]
     return next
+  }
+
+  async function writeSummary() {
+    setSummaryErr("")
+    setWritingSummary(true)
+    try {
+      const s = await aiGenerateSummary(resume)
+      update((r) => ({ ...r, summary: s }))
+    } catch (e) {
+      setSummaryErr(e instanceof Error ? e.message : "Couldn't write a summary.")
+    } finally {
+      setWritingSummary(false)
+    }
+  }
+
+  // Reorder a section within settings.sectionOrder.
+  function moveSection(key: SectionKey, dir: -1 | 1) {
+    update((r) => {
+      const order = [...r.settings.sectionOrder]
+      const i = order.indexOf(key)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= order.length) return r
+      ;[order[i], order[j]] = [order[j], order[i]]
+      return { ...r, settings: { ...r.settings, sectionOrder: order } }
+    })
   }
 
   const c = resume.contact
@@ -47,7 +76,12 @@ export function EditorForm({
 
       {/* Summary */}
       <div className="editor-section">
-        <h3 className="editor-section-title">{SECTION_LABELS.summary}</h3>
+        <div className="editor-section-head">
+          <h3 className="editor-section-title">{SECTION_LABELS.summary}</h3>
+          <button className="btn-ghost small" disabled={writingSummary} onClick={writeSummary} title="Let AI draft a summary from your resume">
+            {writingSummary ? "Writing\u2026" : "\u2728 Write with AI"}
+          </button>
+        </div>
         <TextArea
           label="Summary"
           hint="2–3 sentences, tailored to the role"
@@ -56,6 +90,7 @@ export function EditorForm({
           onChange={(v) => update((r) => ({ ...r, summary: v }))}
           placeholder="Results-driven [role] with X years…"
         />
+        {summaryErr && <p className="error-text">{summaryErr}</p>}
       </div>
 
       {/* Experience */}
@@ -188,30 +223,40 @@ export function EditorForm({
         ))}
       </div>
 
-      {/* Section visibility */}
+      {/* Section order & visibility */}
       <div className="editor-section">
-        <h3 className="editor-section-title">Sections shown</h3>
-        <div className="toggle-list">
-          {(Object.keys(SECTION_LABELS) as SectionKey[]).map((key) => (
-            <label className="checkbox" key={key}>
-              <input
-                type="checkbox"
-                checked={!resume.settings.hidden.includes(key)}
-                onChange={(ev) =>
-                  update((r) => ({
-                    ...r,
-                    settings: {
-                      ...r.settings,
-                      hidden: ev.target.checked
-                        ? r.settings.hidden.filter((s) => s !== key)
-                        : [...r.settings.hidden, key],
-                    },
-                  }))
-                }
-              />
-              {SECTION_LABELS[key]}
-            </label>
-          ))}
+        <h3 className="editor-section-title">Section order &amp; visibility</h3>
+        <p className="hint">Reorder sections with the arrows, and toggle each on or off.</p>
+        <div className="section-order">
+          {resume.settings.sectionOrder.map((key, i) => {
+            const shown = !resume.settings.hidden.includes(key)
+            return (
+              <div className="section-order-row" key={key}>
+                <div className="section-order-move">
+                  <button className="btn-ghost tiny" onClick={() => moveSection(key, -1)} disabled={i === 0} aria-label={`Move ${SECTION_LABELS[key]} up`}>↑</button>
+                  <button className="btn-ghost tiny" onClick={() => moveSection(key, 1)} disabled={i === resume.settings.sectionOrder.length - 1} aria-label={`Move ${SECTION_LABELS[key]} down`}>↓</button>
+                </div>
+                <label className="checkbox grow">
+                  <input
+                    type="checkbox"
+                    checked={shown}
+                    onChange={(ev) =>
+                      update((r) => ({
+                        ...r,
+                        settings: {
+                          ...r.settings,
+                          hidden: ev.target.checked
+                            ? r.settings.hidden.filter((s) => s !== key)
+                            : [...r.settings.hidden, key],
+                        },
+                      }))
+                    }
+                  />
+                  {SECTION_LABELS[key]}
+                </label>
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>

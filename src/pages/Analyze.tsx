@@ -1,7 +1,8 @@
 import React, { useState } from "react"
 import { Resume } from "../types/resume"
 import { AtsResult, analyzeResume, analyzeLocally } from "../lib/ats"
-import { aiTailorSummary } from "../lib/ai"
+import { aiTailorResume, aiProofread, TailorResult } from "../lib/ai"
+import { listJDs, saveJD, deleteJD, SavedJD } from "../lib/jdLibrary"
 import { ResumePreview } from "../templates/ResumePreview"
 import { navigate } from "../router"
 
@@ -42,8 +43,12 @@ export function Analyze({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [tailoring, setTailoring] = useState(false)
-  const [tailored, setTailored] = useState<string | null>(null)
+  const [tailored, setTailored] = useState<TailorResult | null>(null)
   const [tailorErr, setTailorErr] = useState("")
+  const [proofing, setProofing] = useState(false)
+  const [issues, setIssues] = useState<string[] | null>(null)
+  const [proofErr, setProofErr] = useState("")
+  const [jds, setJds] = useState<SavedJD[]>(() => listJDs())
 
   function onJd(v: string) {
     setJd(v)
@@ -52,6 +57,26 @@ export function Analyze({
     } catch {
       /* ignore storage errors */
     }
+  }
+
+  function onSaveJd() {
+    if (!jd.trim()) {
+      setError("Paste a job description first.")
+      return
+    }
+    saveJD(jd)
+    setJds(listJDs())
+  }
+
+  function onLoadJd(id: string) {
+    if (!id) return
+    const found = jds.find((j) => j.id === id)
+    if (found) onJd(found.text)
+  }
+
+  function onDeleteJd(id: string) {
+    deleteJD(id)
+    setJds(listJDs())
   }
 
   async function run(useAi: boolean) {
@@ -80,18 +105,30 @@ export function Analyze({
     setTailoring(true)
     setTailored(null)
     try {
-      const s = await aiTailorSummary(resume, jd)
-      setTailored(s)
+      setTailored(await aiTailorResume(resume, jd))
     } catch (e) {
-      setTailorErr(e instanceof Error ? e.message : "Couldn't tailor your summary.")
+      setTailorErr(e instanceof Error ? e.message : "Couldn't tailor your resume.")
     } finally {
       setTailoring(false)
     }
   }
 
   function applyTailored() {
-    if (tailored) setResume((r) => ({ ...r, summary: tailored }))
+    if (tailored?.summary) setResume((r) => ({ ...r, summary: tailored.summary }))
     setTailored(null)
+  }
+
+  async function proofread() {
+    setProofErr("")
+    setProofing(true)
+    setIssues(null)
+    try {
+      setIssues(await aiProofread(resume))
+    } catch (e) {
+      setProofErr(e instanceof Error ? e.message : "Couldn't proofread your resume.")
+    } finally {
+      setProofing(false)
+    }
   }
 
   return (
@@ -104,6 +141,25 @@ export function Analyze({
 
       <div className="analyze-grid">
         <div className="jd-pane">
+          <div className="jd-library">
+            <select className="select" defaultValue="" onChange={(e) => { onLoadJd(e.target.value); e.target.value = "" }} title="Load a saved job description">
+              <option value="">Saved jobs…</option>
+              {jds.map((j) => (
+                <option key={j.id} value={j.id}>{j.title}</option>
+              ))}
+            </select>
+            <button className="btn-ghost small" onClick={onSaveJd} title="Save this job description for later">Save JD</button>
+          </div>
+          {jds.length > 0 && (
+            <div className="jd-chips">
+              {jds.map((j) => (
+                <span key={j.id} className="jd-chip">
+                  <button className="jd-chip-load" onClick={() => onLoadJd(j.id)} title={j.title}>{j.title}</button>
+                  <button className="jd-chip-x" onClick={() => onDeleteJd(j.id)} aria-label="Delete saved job">×</button>
+                </span>
+              ))}
+            </div>
+          )}
           <textarea
             className="jd-input"
             placeholder="Paste the full job description here…"
@@ -113,15 +169,18 @@ export function Analyze({
           />
           <div className="jd-actions">
             <button className="btn-primary" disabled={loading} onClick={() => run(true)}>
-              {loading ? "Analyzing…" : "✨ Analyze with AI"}
+              {loading ? "Analyzing\u2026" : "\u2728 Analyze with AI"}
             </button>
             <button className="btn-ghost" disabled={loading} onClick={() => run(false)} title="Instant offline scoring">
               Quick offline check
             </button>
           </div>
           <div className="jd-actions">
-            <button className="btn-secondary" disabled={tailoring} onClick={tailor} title="Use AI to rewrite your summary for this job">
-              {tailoring ? "Tailoring…" : "✨ Tailor my summary"}
+            <button className="btn-secondary" disabled={tailoring} onClick={tailor} title="Use AI to tailor your resume for this job">
+              {tailoring ? "Tailoring\u2026" : "\u2728 Tailor my resume"}
+            </button>
+            <button className="btn-secondary" disabled={proofing} onClick={proofread} title="Grammar & tone proofread">
+              {proofing ? "Checking\u2026" : "\u2728 Proofread"}
             </button>
             <button className="btn-ghost" onClick={() => navigate("/cover")} title="Draft a cover letter for this job">✍️ Cover letter</button>
           </div>
@@ -129,10 +188,38 @@ export function Analyze({
           {tailored && (
             <div className="tailored-box">
               <strong>Suggested summary</strong>
-              <p>{tailored}</p>
+              <p>{tailored.summary}</p>
+              {tailored.missingKeywords.length > 0 && (
+                <p className="muted small">Consider adding: {tailored.missingKeywords.join(", ")}</p>
+              )}
+              {tailored.suggestions.length > 0 && (
+                <ul className="tailor-suggestions">
+                  {tailored.suggestions.map((s, i) => (
+                    <li key={i}>{s}</li>
+                  ))}
+                </ul>
+              )}
               <div className="jd-actions">
-                <button className="btn-primary small" onClick={applyTailored}>Apply to resume</button>
+                <button className="btn-primary small" onClick={applyTailored}>Apply summary</button>
                 <button className="btn-ghost small" onClick={() => setTailored(null)}>Dismiss</button>
+              </div>
+            </div>
+          )}
+          {proofErr && <p className="error">{proofErr}</p>}
+          {issues && (
+            <div className="tailored-box">
+              <strong>Proofread results</strong>
+              {issues.length === 0 ? (
+                <p className="muted">No issues found — your writing looks clean! ✅</p>
+              ) : (
+                <ul className="tailor-suggestions">
+                  {issues.map((s, i) => (
+                    <li key={i}>{s}</li>
+                  ))}
+                </ul>
+              )}
+              <div className="jd-actions">
+                <button className="btn-ghost small" onClick={() => setIssues(null)}>Dismiss</button>
               </div>
             </div>
           )}
@@ -156,6 +243,29 @@ export function Analyze({
                   <p>{result.summary}</p>
                 </div>
               </div>
+
+              {result.sections && result.sections.length > 0 && (
+                <div className="section-breakdown">
+                  <h3>Score breakdown</h3>
+                  {result.sections.map((s, i) => {
+                    const pct = s.max ? Math.round((s.score / s.max) * 100) : 0
+                    const tone = pct >= 80 ? "good" : pct >= 50 ? "ok" : "bad"
+                    const barStyle = { width: `${pct}%` } as React.CSSProperties
+                    return (
+                      <div className="breakdown-row" key={i}>
+                        <div className="breakdown-head">
+                          <span className="breakdown-label">{s.label}</span>
+                          <span className="breakdown-score">{s.score}/{s.max}</span>
+                        </div>
+                        <div className="breakdown-track">
+                          <div className={`breakdown-fill tone-${tone}`} style={barStyle} />
+                        </div>
+                        {s.note && <span className="breakdown-note">{s.note}</span>}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
 
               <div className="keywords">
                 <div className="kw-col">
