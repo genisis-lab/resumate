@@ -444,7 +444,7 @@ mark.hl { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 2p
   /* ---- Nav: compact bar with horizontally scrollable links ---- */
   .nav { gap: 10px; padding: 8px 12px; }
   .brand { font-size: 16px; }
-  .nav-links { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; gap: 2px; scrollbar-width: none; }
+  .nav-links { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; gap: 2px; scrollbar-width: none; min-width: 0; flex: 1 1 auto; }
   .nav-links::-webkit-scrollbar { display: none; }
   .nav-links button { padding: 8px 11px; white-space: nowrap; }
   .nav-right { gap: 6px; }
@@ -531,4 +531,29 @@ mark.hl { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 2p
   .suggestion { flex-direction: column; gap: 3px; }
   .sug-section { width: 100%; }
   .nav-right .btn-ghost, .nav-right button { padding: 6px 8px; font-size: 13px; }
+}
+
+/* ===== Scroll affordance: right-edge fade + chevron on the scrollable
+   nav links and builder toolbar (mobile only; desktop unchanged) ===== */
+@media (max-width: 768px) {
+  .nav-links::after, .toolbar::after {
+    content: "\203A";
+    position: sticky;
+    right: 0;
+    flex: 0 0 auto;
+    align-self: stretch;
+    width: 36px;
+    margin-left: -36px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 7px;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--brand);
+    background: linear-gradient(to right, transparent, var(--surface) 60%);
+    pointer-events: none;
+    z-index: 5;
+  }
 }
