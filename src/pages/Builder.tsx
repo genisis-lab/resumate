@@ -5,9 +5,12 @@ import { EditorForm } from "../components/EditorForm"
 import { exportPdf } from "../lib/exportPdf"
 import { exportDocx } from "../lib/exportDocx"
 import { exportResumeJSON, exportAllJSON, importAllJSON, duplicateResume, clearAllData, loadStore, deleteResume } from "../lib/storage"
+import { exportMarkdown, exportPlainText, exportJsonResume } from "../lib/exportText"
+import { buildShareUrl } from "../lib/share"
 import { createEmptyResume, createSampleResume } from "../data/sample"
 import { importResumeFromFile } from "../lib/importResume"
 import { completeness, qualityFlags } from "../lib/quality"
+import { Density } from "../types/resume"
 import { navigate } from "../router"
 
 const TEMPLATES: { id: TemplateId; label: string }[] = [
@@ -15,6 +18,14 @@ const TEMPLATES: { id: TemplateId; label: string }[] = [
   { id: "classic", label: "Classic" },
   { id: "minimal", label: "Minimal" },
   { id: "ats", label: "ATS-Safe" },
+  { id: "twocolumn", label: "Two-Column" },
+  { id: "creative", label: "Creative" },
+]
+
+const DENSITIES: { id: Density; label: string }[] = [
+  { id: "compact", label: "Compact" },
+  { id: "cozy", label: "Cozy" },
+  { id: "roomy", label: "Roomy" },
 ]
 
 const ACCENTS = ["#2563eb", "#0f766e", "#7c3aed", "#be123c", "#b45309", "#111827"]
@@ -26,11 +37,19 @@ export function Builder({
   setResume,
   switchResume,
   replaceResume,
+  undo,
+  redo,
+  canUndo,
+  canRedo,
 }: {
   resume: Resume
   setResume: (r: Resume | ((p: Resume) => Resume)) => void
   switchResume: (id: string) => void
   replaceResume: (r: Resume) => void
+  undo: () => void
+  redo: () => void
+  canUndo: boolean
+  canRedo: boolean
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const resumeFileRef = useRef<HTMLInputElement>(null)
@@ -97,6 +116,16 @@ export function Builder({
   function onDuplicate() {
     const copy = duplicateResume(resume.id)
     if (copy) switchResume(copy.id)
+  }
+
+  async function onShare() {
+    const url = buildShareUrl(resume)
+    try {
+      await navigator.clipboard.writeText(url)
+      alert("Read-only share link copied to your clipboard! Anyone who opens it can load a copy of this resume.")
+    } catch {
+      prompt("Copy this read-only share link:", url)
+    }
   }
 
   return (
@@ -189,6 +218,22 @@ export function Builder({
             value={resume.settings.fontScale}
             onChange={(e) => setSettings({ fontScale: Number(e.target.value) })}
           />
+          <span className="toolbar-label">Density</span>
+          <select
+            className="select"
+            value={resume.settings.density || "cozy"}
+            onChange={(e) => setSettings({ density: e.target.value as Density })}
+            title="Spacing density"
+          >
+            {DENSITIES.map((d) => (
+              <option key={d.id} value={d.id}>{d.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="toolbar-group">
+          <button className="btn-ghost small" onClick={undo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)">↶ Undo</button>
+          <button className="btn-ghost small" onClick={redo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)">↷ Redo</button>
         </div>
 
         <div className="toolbar-group right">
@@ -199,6 +244,10 @@ export function Builder({
           <button className="btn-ghost small" onClick={() => fileRef.current?.click()}>Import JSON</button>
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={onImport} />
           <button className="btn-ghost small" onClick={() => exportResumeJSON(resume)}>Export JSON</button>
+          <button className="btn-ghost small" onClick={() => exportMarkdown(resume)} title="Export as Markdown">.md</button>
+          <button className="btn-ghost small" onClick={() => exportPlainText(resume)} title="Export as plain text">.txt</button>
+          <button className="btn-ghost small" onClick={() => exportJsonResume(resume)} title="Export in the JSON Resume standard">JSON Resume</button>
+          <button className="btn-ghost small" onClick={onShare} title="Copy a read-only share link">🔗 Share</button>
           <button className="btn-ghost small" onClick={() => exportAllJSON()} title="Download a backup of every saved resume">Backup all</button>
           <button className="btn-ghost small" onClick={() => backupFileRef.current?.click()} title="Restore resumes from a backup file">Restore</button>
           <input ref={backupFileRef} type="file" accept="application/json,.json" hidden onChange={onRestoreBackup} />
