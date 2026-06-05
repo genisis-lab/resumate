@@ -32,7 +32,11 @@ export function loadStore(): StoreShape {
 }
 
 export function persistStore(store: StoreShape): void {
-  localStorage.setItem(STORE_KEY, JSON.stringify(store))
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(store))
+  } catch (e) {
+    console.warn("ResuMate: could not save to this browser's storage (it may be full or blocked).", e)
+  }
 }
 
 export function getActiveId(): string | null {
@@ -114,4 +118,43 @@ export function exportAllJSON(): void {
   const store = loadStore()
   const blob = new Blob([JSON.stringify(store, null, 2)], { type: "application/json" })
   triggerDownload(blob, "resumate_backup.json")
+}
+
+// ---- Restore: merge a full backup produced by exportAllJSON ----
+export async function importAllJSON(file: File): Promise<number> {
+  const text = await file.text()
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    throw new Error("That file isn't valid JSON.")
+  }
+  const incoming = (parsed as Partial<StoreShape>)?.resumes
+  if (!Array.isArray(incoming) || incoming.length === 0) {
+    throw new Error("This doesn't look like a ResuMate backup (no resumes found).")
+  }
+  const store = loadStore()
+  const byId = new Map(store.resumes.map((r) => [r.id, r]))
+  for (const r of incoming) {
+    if (r && typeof r.id === "string") byId.set(r.id, r as Resume)
+  }
+  store.resumes = Array.from(byId.values())
+  persistStore(store)
+  return incoming.length
+}
+
+// ---- Duplicate a saved resume ----
+export function duplicateResume(id: string): Resume | null {
+  const store = loadStore()
+  const src = store.resumes.find((r) => r.id === id)
+  if (!src) return null
+  const copy: Resume = {
+    ...JSON.parse(JSON.stringify(src)),
+    id: createEmptyResume().id,
+    name: `${src.name} (copy)`,
+    updatedAt: Date.now(),
+  }
+  store.resumes.push(copy)
+  persistStore(store)
+  return copy
 }
