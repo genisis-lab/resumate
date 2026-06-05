@@ -161,6 +161,9 @@ function renderSection(key: SectionKey, r: Resume, hl: HL) {
   }
 }
 
+// Sections that live in the narrow sidebar for the two-column template.
+const SIDEBAR_KEYS: SectionKey[] = ["skills", "education", "certifications"]
+
 export function ResumePreview({
   resume,
   highlight,
@@ -171,16 +174,29 @@ export function ResumePreview({
   const { settings } = resume
   const order = settings.sectionOrder.filter((s) => !settings.hidden.includes(s))
   const hl = makeHighlighter(highlight)
+  const density = settings.density || "cozy"
   const style = {
     ["--accent" as any]: settings.accent,
     ["--font-scale" as any]: String(settings.fontScale),
   } as React.CSSProperties
+  const className = `resume-paper tpl-${settings.template} density-${density}`
+
+  if (settings.template === "twocolumn") {
+    const aside = order.filter((k) => SIDEBAR_KEYS.includes(k))
+    const main = order.filter((k) => !SIDEBAR_KEYS.includes(k))
+    return (
+      <div id="resume-print-area" className={className} style={style}>
+        <Contact r={resume} />
+        <div className="rp-two">
+          <aside className="rp-aside">{aside.map((key) => renderSection(key, resume, hl))}</aside>
+          <div className="rp-main">{main.map((key) => renderSection(key, resume, hl))}</div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div
-      id="resume-print-area"
-      className={`resume-paper tpl-${settings.template}`}
-      style={style}
-    >
+    <div id="resume-print-area" className={className} style={style}>
       <Contact r={resume} />
       <div className="rp-body">{order.map((key) => renderSection(key, resume, hl))}</div>
     </div>
