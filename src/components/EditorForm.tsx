@@ -86,7 +86,7 @@ export function EditorForm({
               <input type="checkbox" checked={e.current} onChange={(ev) => patchExp(update, e.id, { current: ev.target.checked })} />
               I currently work here
             </label>
-            <BulletEditor bullets={e.bullets} onChange={(b) => patchExp(update, e.id, { bullets: b })} />
+            <BulletEditor bullets={e.bullets} onChange={(b) => patchExp(update, e.id, { bullets: b })} aiContext={expCtx(e)} />
           </Collapsible>
         ))}
       </div>
@@ -159,7 +159,7 @@ export function EditorForm({
               <TextField label="Link" value={p.link} onChange={(v) => patchProj(update, p.id, { link: v })} placeholder="github.com/…" />
             </div>
             <TextArea label="Description" rows={2} value={p.description} onChange={(v) => patchProj(update, p.id, { description: v })} />
-            <BulletEditor bullets={p.bullets} onChange={(b) => patchProj(update, p.id, { bullets: b })} />
+            <BulletEditor bullets={p.bullets} onChange={(b) => patchProj(update, p.id, { bullets: b })} aiContext={projCtx(p)} />
           </Collapsible>
         ))}
       </div>
@@ -233,4 +233,11 @@ function patchProj(update: Setter, id: string, patch: Partial<Resume["projects"]
 }
 function patchCert(update: Setter, id: string, patch: Partial<Resume["certifications"][number]>) {
   update((r) => ({ ...r, certifications: r.certifications.map((e) => (e.id === id ? { ...e, ...patch } : e)) }))
+}
+
+function expCtx(e: Resume["experience"][number]) {
+  return { role: e.role, company: e.company }
+}
+function projCtx(p: Resume["projects"][number]) {
+  return { role: p.name }
 }

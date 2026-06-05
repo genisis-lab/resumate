@@ -1,6 +1,8 @@
 import React, { useState } from "react"
 import { Resume } from "../types/resume"
 import { AtsResult, analyzeResume, analyzeLocally } from "../lib/ats"
+import { aiTailorSummary } from "../lib/ai"
+import { ResumePreview } from "../templates/ResumePreview"
 import { navigate } from "../router"
 
 function ScoreGauge({ score }: { score: number }) {
@@ -22,11 +24,35 @@ function ScoreGauge({ score }: { score: number }) {
   )
 }
 
-export function Analyze({ resume }: { resume: Resume }) {
-  const [jd, setJd] = useState("")
+export function Analyze({
+  resume,
+  setResume,
+}: {
+  resume: Resume
+  setResume: (r: Resume | ((p: Resume) => Resume)) => void
+}) {
+  const [jd, setJd] = useState(() => {
+    try {
+      return sessionStorage.getItem("resumate.jd") || ""
+    } catch {
+      return ""
+    }
+  })
   const [result, setResult] = useState<AtsResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [tailoring, setTailoring] = useState(false)
+  const [tailored, setTailored] = useState<string | null>(null)
+  const [tailorErr, setTailorErr] = useState("")
+
+  function onJd(v: string) {
+    setJd(v)
+    try {
+      sessionStorage.setItem("resumate.jd", v)
+    } catch {
+      /* ignore storage errors */
+    }
+  }
 
   async function run(useAi: boolean) {
     if (!jd.trim()) {
@@ -45,11 +71,34 @@ export function Analyze({ resume }: { resume: Resume }) {
     }
   }
 
+  async function tailor() {
+    if (!jd.trim()) {
+      setTailorErr("Paste a job description first.")
+      return
+    }
+    setTailorErr("")
+    setTailoring(true)
+    setTailored(null)
+    try {
+      const s = await aiTailorSummary(resume, jd)
+      setTailored(s)
+    } catch (e) {
+      setTailorErr(e instanceof Error ? e.message : "Couldn't tailor your summary.")
+    } finally {
+      setTailoring(false)
+    }
+  }
+
+  function applyTailored() {
+    if (tailored) setResume((r) => ({ ...r, summary: tailored }))
+    setTailored(null)
+  }
+
   return (
     <div className="analyze">
       <div className="analyze-head">
         <button className="btn-ghost small" onClick={() => navigate("/builder")}>← Back to editor</button>
-        <h1>ATS Score & Optimization</h1>
+        <h1>ATS Score &amp; Optimization</h1>
         <p className="muted">Paste the job description you're targeting. We'll score your resume against it and suggest concrete improvements.</p>
       </div>
 
@@ -59,7 +108,8 @@ export function Analyze({ resume }: { resume: Resume }) {
             className="jd-input"
             placeholder="Paste the full job description here…"
             value={jd}
-            onChange={(e) => setJd(e.target.value)}
+            onChange={(e) => onJd(e.target.value)}
+            aria-label="Job description"
           />
           <div className="jd-actions">
             <button className="btn-primary" disabled={loading} onClick={() => run(true)}>
@@ -69,6 +119,23 @@ export function Analyze({ resume }: { resume: Resume }) {
               Quick offline check
             </button>
           </div>
+          <div className="jd-actions">
+            <button className="btn-secondary" disabled={tailoring} onClick={tailor} title="Use AI to rewrite your summary for this job">
+              {tailoring ? "Tailoring…" : "✨ Tailor my summary"}
+            </button>
+            <button className="btn-ghost" onClick={() => navigate("/cover")} title="Draft a cover letter for this job">✍️ Cover letter</button>
+          </div>
+          {tailorErr && <p className="error">{tailorErr}</p>}
+          {tailored && (
+            <div className="tailored-box">
+              <strong>Suggested summary</strong>
+              <p>{tailored}</p>
+              <div className="jd-actions">
+                <button className="btn-primary small" onClick={applyTailored}>Apply to resume</button>
+                <button className="btn-ghost small" onClick={() => setTailored(null)}>Dismiss</button>
+              </div>
+            </div>
+          )}
           {error && <p className="error">{error}</p>}
           <p className="hint-text">AI analysis runs through a secure serverless function. If no AI key is configured (or you're offline), ResuMate automatically falls back to an instant on-device keyword + structure analysis — your data never leaves the browser.</p>
         </div>
@@ -76,7 +143,7 @@ export function Analyze({ resume }: { resume: Resume }) {
         <div className="result-pane">
           {!result && !loading && (
             <div className="empty-state">
-              <div className="empty-emoji">📊</div>
+              <div className="empty-emoji" aria-hidden="true">📊</div>
               <p>Your ATS score and tailored suggestions will appear here.</p>
             </div>
           )}
@@ -125,6 +192,18 @@ export function Analyze({ resume }: { resume: Resume }) {
           )}
         </div>
       </div>
+
+      {result && (
+        <section className="hl-preview-wrap">
+          <div className="hl-preview-head">
+            <h2>Resume preview <span className="muted">— matched keywords highlighted</span></h2>
+            <button className="btn-ghost small" onClick={() => navigate("/cover")}>✍️ Generate cover letter</button>
+          </div>
+          <div className="hl-preview">
+            <ResumePreview resume={resume} highlight={result.matchedKeywords} />
+          </div>
+        </section>
+      )}
     </div>
   )
 }

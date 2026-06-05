@@ -101,3 +101,17 @@ export function triggerDownload(blob: Blob, filename: string): void {
 export function sanitize(name: string): string {
   return (name || "resume").replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "") || "resume"
 }
+
+// ---- Privacy: wipe all locally stored resume data ----
+export function clearAllData(): void {
+  localStorage.removeItem(STORE_KEY)
+  localStorage.removeItem(ACTIVE_KEY)
+  // Theme preference is intentionally kept; it isn't personal resume data.
+}
+
+// ---- Backup: download every saved resume as one JSON file ----
+export function exportAllJSON(): void {
+  const store = loadStore()
+  const blob = new Blob([JSON.stringify(store, null, 2)], { type: "application/json" })
+  triggerDownload(blob, "resumate_backup.json")
+}
