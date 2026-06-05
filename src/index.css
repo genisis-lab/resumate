@@ -432,3 +432,103 @@ mark.hl { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 2p
 .tpl-creative .rp-contact { justify-content: flex-start; color: rgba(255,255,255,.92); }
 .tpl-creative .rp-contact span:not(:last-child)::after { color: rgba(255,255,255,.6); }
 .tpl-creative .rp-section-title { color: var(--accent, #2563eb); border-bottom: 2px solid var(--accent, #2563eb); letter-spacing: .06em; }
+
+/* ============================================================
+   DEDICATED MOBILE EXPERIENCE (≤768px). Desktop is untouched
+   — every rule below lives inside a mobile media query.
+   ============================================================ */
+@media (max-width: 768px) {
+  /* Stop iOS auto-zoom on focus: form fields must render ≥16px */
+  .field-input, .input, .select, .jd-input, .cover-text, .input.textarea { font-size: 16px; }
+
+  /* ---- Nav: compact bar with horizontally scrollable links ---- */
+  .nav { gap: 10px; padding: 8px 12px; }
+  .brand { font-size: 16px; }
+  .nav-links { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; gap: 2px; scrollbar-width: none; }
+  .nav-links::-webkit-scrollbar { display: none; }
+  .nav-links button { padding: 8px 11px; white-space: nowrap; }
+  .nav-right { gap: 6px; }
+  .saved-pill { font-size: 11px; padding: 3px 7px; }
+
+  /* ---- Builder toolbar: one swipeable row instead of a tall wrap ---- */
+  .toolbar { position: static; top: auto; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 12px; padding: 8px 12px; scrollbar-width: none; }
+  .toolbar::-webkit-scrollbar { display: none; }
+  .toolbar-group { flex: none; gap: 6px; }
+  .toolbar-group.right { margin-left: 0; }
+  .toolbar .btn-ghost, .toolbar .btn-primary, .toolbar .btn-secondary, .toolbar .chip { white-space: nowrap; }
+  .select { max-width: 150px; }
+
+  /* ---- Edit / Preview as a sticky segmented control ---- */
+  .mobile-tabs { position: sticky; top: 46px; z-index: 30; display: flex; gap: 0; padding: 8px 12px; }
+  .mobile-tabs .chip { flex: 1; text-align: center; padding: 11px 0; border: 1px solid var(--border-strong); border-radius: 0; font-size: 14px; font-weight: 600; }
+  .mobile-tabs .chip:first-child { border-radius: 8px 0 0 8px; }
+  .mobile-tabs .chip:last-child { border-radius: 0 8px 8px 0; border-left: none; }
+
+  /* ---- Builder panes ---- */
+  .builder-grid { grid-template-columns: 1fr; height: auto; }
+  .editor-pane { padding: 14px 14px 48px; border-right: none; }
+  .preview-pane { padding: 12px; }
+  .completeness { padding: 13px; margin-bottom: 14px; }
+
+  /* ---- Resume paper scales down for small screens ---- */
+  .resume-paper { padding: 26px 22px; max-width: 100%; }
+  .tpl-minimal .resume-paper, .tpl-minimal.resume-paper { padding: 28px 22px; }
+  .rp-entry-head { flex-direction: column; gap: 0; }
+  .rp-entry-date { font-size: .8em; }
+
+  /* Two-column template stacks vertically on phones */
+  .tpl-twocolumn .rp-two { grid-template-columns: 1fr; gap: 0; }
+  .tpl-twocolumn .rp-aside { border-right: none; border-bottom: 1px solid #e2e2e2; padding-right: 0; padding-bottom: 8px; margin-bottom: 8px; }
+
+  /* Creative header negative margins follow the smaller paper padding */
+  .tpl-creative .rp-header { margin: -26px -22px 18px; padding: 24px 22px 20px; }
+
+  /* ---- Forms ---- */
+  .grid-2, .grid-2.tight { grid-template-columns: 1fr; gap: 10px; }
+  .collapsible-body { padding: 4px 11px 12px; }
+
+  /* ---- Analyze ---- */
+  .analyze, .templates-page { padding: 18px 14px 48px; }
+  .analyze-grid { grid-template-columns: 1fr; gap: 16px; }
+  .jd-input { min-height: 160px; }
+  .keywords { grid-template-columns: 1fr; gap: 12px; }
+  .result-top { flex-direction: column; text-align: center; gap: 12px; }
+  .result-pane { padding: 16px; }
+  .hl-preview { padding: 12px; }
+  .hl-preview-head { flex-direction: column; align-items: stretch; gap: 8px; }
+  .cover-text { min-height: 320px; }
+
+  /* ---- Templates gallery ---- */
+  .template-gallery { grid-template-columns: 1fr; gap: 16px; }
+  .template-thumb { height: 230px; }
+
+  /* ---- Landing ---- */
+  .landing { padding: 16px; }
+  .hero { padding: 36px 8px 28px; }
+  .hero h1 { font-size: 32px; }
+  .hero-sub { font-size: 16px; }
+  .hero-cta { flex-direction: column; }
+  .hero-cta .btn-primary, .hero-cta .btn-secondary, .hero-cta .btn-ghost { width: 100%; }
+  .features, .steps { grid-template-columns: 1fr; }
+  .how h2 { font-size: 23px; }
+  .page.narrow { padding: 18px 14px 48px; }
+
+  /* ---- Comfortable tap targets ---- */
+  .btn-primary, .btn-secondary, .btn-ghost { min-height: 40px; }
+  .small { min-height: 36px; }
+}
+
+@media (max-width: 480px) {
+  .hero h1 { font-size: 27px; }
+  .hero-sub { font-size: 15px; }
+  .resume-paper { padding: 20px 16px; font-size: calc(13px * var(--font-scale, 1)); }
+  .tpl-minimal .resume-paper, .tpl-minimal.resume-paper { padding: 22px 16px; }
+  .tpl-creative .rp-header { margin: -20px -16px 16px; padding: 20px 16px 16px; }
+  .rp-name { font-size: 1.7em; }
+  .gauge-ring { width: 96px; height: 96px; }
+  .gauge-center { width: 72px; height: 72px; }
+  .gauge-score { font-size: 25px; }
+  .suggestion { flex-direction: column; gap: 3px; }
+  .sug-section { width: 100%; }
+  .nav-right .btn-ghost, .nav-right button { padding: 6px 8px; font-size: 13px; }
+}
