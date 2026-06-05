@@ -109,7 +109,8 @@ export function createZip(entries: ZipEntry[]): Blob {
   writeUint32LE(ev, 16, centralOffset)
   writeUint16LE(ev, 20, 0)
 
-  return new Blob([...localParts, ...central, eocd], {
+  const blobParts = [...localParts, ...central, eocd] as unknown as BlobPart[]
+  return new Blob(blobParts, {
     type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   })
 }
