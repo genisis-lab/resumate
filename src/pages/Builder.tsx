@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from "react"
+import React, { useMemo, useRef, useState } from "react"
 import { Resume, TemplateId } from "../types/resume"
 import { ResumePreview } from "../templates/ResumePreview"
 import { EditorForm } from "../components/EditorForm"
@@ -6,6 +6,7 @@ import { exportPdf } from "../lib/exportPdf"
 import { exportDocx } from "../lib/exportDocx"
 import { exportResumeJSON, loadStore, deleteResume } from "../lib/storage"
 import { createEmptyResume } from "../data/sample"
+import { importResumeFromFile } from "../lib/importResume"
 import { completeness, qualityFlags } from "../lib/quality"
 import { navigate } from "../router"
 
@@ -30,6 +31,8 @@ export function Builder({
   replaceResume: (r: Resume) => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
+  const resumeFileRef = useRef<HTMLInputElement>(null)
+  const [importing, setImporting] = useState(false)
   const store = loadStore()
   const comp = useMemo(() => completeness(resume), [resume])
   const flags = useMemo(() => qualityFlags(resume), [resume])
@@ -52,6 +55,24 @@ export function Builder({
     }
     reader.readAsText(file)
     e.target.value = ""
+  }
+
+  async function onImportResume(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    try {
+      const next = await importResumeFromFile(file)
+      replaceResume(next)
+    } catch (err) {
+      alert(
+        "Couldn't import that file. Please upload a PDF or a plain-text (.txt) resume, or use Import JSON.\n\n" +
+          (err instanceof Error ? err.message : ""),
+      )
+    } finally {
+      setImporting(false)
+      e.target.value = ""
+    }
   }
 
   return (
@@ -123,6 +144,10 @@ export function Builder({
         </div>
 
         <div className="toolbar-group right">
+          <button className="btn-ghost small" disabled={importing} onClick={() => resumeFileRef.current?.click()}>
+            {importing ? "Reading\u2026" : "\u2b06 Import r\u00e9sum\u00e9"}
+          </button>
+          <input ref={resumeFileRef} type="file" accept=".pdf,.txt,.md,.text,application/pdf,text/plain" hidden onChange={onImportResume} />
           <button className="btn-ghost small" onClick={() => fileRef.current?.click()}>Import JSON</button>
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={onImport} />
           <button className="btn-ghost small" onClick={() => exportResumeJSON(resume)}>Export JSON</button>
