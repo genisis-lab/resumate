@@ -1,3 +1,4 @@
+import React from "react"
 import { Resume, SectionKey, SECTION_LABELS } from "../types/resume"
 
 function dateRange(start: string, end: string, current?: boolean) {
@@ -6,16 +7,33 @@ function dateRange(start: string, end: string, current?: boolean) {
   return start || e || ""
 }
 
+type HL = (text: string) => React.ReactNode
+
+// Build a highlighter that wraps matched keywords in <mark>. Returns the text
+// untouched when there are no terms (the common case outside the analyzer).
+function makeHighlighter(terms?: string[]): HL {
+  const list = (terms || []).map((t) => t.trim()).filter((t) => t.length > 1)
+  if (!list.length) return (text: string) => text
+  const escaped = list
+    .sort((a, b) => b.length - a.length)
+    .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  const re = new RegExp(`(${escaped.join("|")})`, "gi")
+  return (text: string) => {
+    if (!text) return text
+    const parts = text.split(re)
+    return parts.map((part, i) =>
+      i % 2 === 1 ? (
+        <mark className="hl" key={i}>{part}</mark>
+      ) : (
+        <React.Fragment key={i}>{part}</React.Fragment>
+      ),
+    )
+  }
+}
+
 function Contact({ r }: { r: Resume }) {
   const c = r.contact
-  const links = [
-    c.email,
-    c.phone,
-    c.location,
-    c.website,
-    c.linkedin,
-    c.github,
-  ].filter(Boolean)
+  const links = [c.email, c.phone, c.location, c.website, c.linkedin, c.github].filter(Boolean)
   return (
     <header className="rp-header">
       <h1 className="rp-name">{c.fullName || "Your Name"}</h1>
@@ -40,12 +58,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-function renderSection(key: SectionKey, r: Resume) {
+function renderSection(key: SectionKey, r: Resume, hl: HL) {
   switch (key) {
     case "summary":
       return r.summary ? (
         <Section key={key} title={SECTION_LABELS[key]}>
-          <p className="rp-summary">{r.summary}</p>
+          <p className="rp-summary">{hl(r.summary)}</p>
         </Section>
       ) : null
     case "experience":
@@ -64,7 +82,7 @@ function renderSection(key: SectionKey, r: Resume) {
               {e.bullets.filter(Boolean).length > 0 && (
                 <ul className="rp-bullets">
                   {e.bullets.filter(Boolean).map((b, i) => (
-                    <li key={i}>{b}</li>
+                    <li key={i}>{hl(b)}</li>
                   ))}
                 </ul>
               )}
@@ -98,7 +116,7 @@ function renderSection(key: SectionKey, r: Resume) {
             {r.skills.map((g) => (
               <div className="rp-skill-row" key={g.id}>
                 {g.category && <span className="rp-skill-cat">{g.category}:</span>}{" "}
-                <span className="rp-skill-items">{g.items.join(", ")}</span>
+                <span className="rp-skill-items">{hl(g.items.join(", "))}</span>
               </div>
             ))}
           </div>
@@ -113,11 +131,11 @@ function renderSection(key: SectionKey, r: Resume) {
                 <span className="rp-entry-title">{p.name}</span>
                 {p.link && <span className="rp-entry-date">{p.link}</span>}
               </div>
-              {p.description && <p className="rp-detail">{p.description}</p>}
+              {p.description && <p className="rp-detail">{hl(p.description)}</p>}
               {p.bullets.filter(Boolean).length > 0 && (
                 <ul className="rp-bullets">
                   {p.bullets.filter(Boolean).map((b, i) => (
-                    <li key={i}>{b}</li>
+                    <li key={i}>{hl(b)}</li>
                   ))}
                 </ul>
               )}
@@ -143,9 +161,16 @@ function renderSection(key: SectionKey, r: Resume) {
   }
 }
 
-export function ResumePreview({ resume }: { resume: Resume }) {
+export function ResumePreview({
+  resume,
+  highlight,
+}: {
+  resume: Resume
+  highlight?: string[]
+}) {
   const { settings } = resume
   const order = settings.sectionOrder.filter((s) => !settings.hidden.includes(s))
+  const hl = makeHighlighter(highlight)
   const style = {
     ["--accent" as any]: settings.accent,
     ["--font-scale" as any]: String(settings.fontScale),
@@ -157,7 +182,7 @@ export function ResumePreview({ resume }: { resume: Resume }) {
       style={style}
     >
       <Contact r={resume} />
-      <div className="rp-body">{order.map((key) => renderSection(key, resume))}</div>
+      <div className="rp-body">{order.map((key) => renderSection(key, resume, hl))}</div>
     </div>
   )
 }

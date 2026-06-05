@@ -4,8 +4,8 @@ import { ResumePreview } from "../templates/ResumePreview"
 import { EditorForm } from "../components/EditorForm"
 import { exportPdf } from "../lib/exportPdf"
 import { exportDocx } from "../lib/exportDocx"
-import { exportResumeJSON, loadStore, deleteResume } from "../lib/storage"
-import { createEmptyResume } from "../data/sample"
+import { exportResumeJSON, exportAllJSON, clearAllData, loadStore, deleteResume } from "../lib/storage"
+import { createEmptyResume, createSampleResume } from "../data/sample"
 import { importResumeFromFile } from "../lib/importResume"
 import { completeness, qualityFlags } from "../lib/quality"
 import { navigate } from "../router"
@@ -33,6 +33,7 @@ export function Builder({
   const fileRef = useRef<HTMLInputElement>(null)
   const resumeFileRef = useRef<HTMLInputElement>(null)
   const [importing, setImporting] = useState(false)
+  const [mobileView, setMobileView] = useState<"edit" | "preview">("edit")
   const store = loadStore()
   const comp = useMemo(() => completeness(resume), [resume])
   const flags = useMemo(() => qualityFlags(resume), [resume])
@@ -92,6 +93,17 @@ export function Builder({
             ))}
           </select>
           <button className="btn-ghost small" onClick={() => replaceResume(createEmptyResume("Untitled"))}>+ New</button>
+          <button
+            className="btn-ghost small"
+            title="Fill the editor with a complete example you can edit"
+            onClick={() => {
+              if (isResumeEmpty(resume) || confirm("Load the example resume? This replaces the current resume's contents.")) {
+                replaceResume({ ...createSampleResume(), id: resume.id, name: resume.name })
+              }
+            }}
+          >
+            Load example
+          </button>
           {store.resumes.length > 1 && (
             <button
               className="btn-ghost small danger"
@@ -106,6 +118,18 @@ export function Builder({
               Delete
             </button>
           )}
+          <button
+            className="btn-ghost small danger"
+            title="Erase all locally stored data from this browser"
+            onClick={() => {
+              if (confirm("Erase ALL ResuMate data from this browser (every resume)? Export a backup first if you want to keep it. This cannot be undone.")) {
+                clearAllData()
+                location.reload()
+              }
+            }}
+          >
+            Clear data
+          </button>
         </div>
 
         <div className="toolbar-group">
@@ -127,7 +151,7 @@ export function Builder({
             <button
               key={a}
               className={`swatch ${resume.settings.accent === a ? "active" : ""}`}
-              style={ { background: a } }
+              style= background: a 
               onClick={() => setSettings({ accent: a })}
               title={a}
             />
@@ -151,13 +175,18 @@ export function Builder({
           <button className="btn-ghost small" onClick={() => fileRef.current?.click()}>Import JSON</button>
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={onImport} />
           <button className="btn-ghost small" onClick={() => exportResumeJSON(resume)}>Export JSON</button>
+          <button className="btn-ghost small" onClick={() => exportAllJSON()} title="Download a backup of every saved resume">Backup all</button>
           <button className="btn-secondary small" onClick={() => navigate("/analyze")}>✨ ATS Check</button>
           <button className="btn-secondary small" onClick={() => exportDocx(resume)}>⬇ Word</button>
           <button className="btn-primary small" onClick={() => exportPdf()}>⬇ PDF</button>
         </div>
       </div>
 
-      <div className="builder-grid">
+      <div className="mobile-tabs no-print" role="tablist" aria-label="Editor or preview">
+        <button type="button" role="tab" aria-selected={mobileView === "edit"} className={`chip ${mobileView === "edit" ? "active" : ""}`} onClick={() => setMobileView("edit")}>Editor</button>
+        <button type="button" role="tab" aria-selected={mobileView === "preview"} className={`chip ${mobileView === "preview" ? "active" : ""}`} onClick={() => setMobileView("preview")}>Preview</button>
+      </div>
+      <div className={`builder-grid show-${mobileView}`}>
         <div className="editor-pane no-print">
           <div className="completeness">
             <div className="completeness-row">
@@ -181,6 +210,7 @@ export function Builder({
             )}
           </div>
           <EditorForm resume={resume} setResume={setResume} />
+          <p className="privacy-note no-print">🔒 Everything you enter stays in this browser. No account, no upload. Use “Backup all” to save a copy, or “Clear data” to wipe everything.</p>
         </div>
         <div className="preview-pane">
           <div className="preview-scroll">
@@ -189,5 +219,17 @@ export function Builder({
         </div>
       </div>
     </div>
+  )
+}
+
+function isResumeEmpty(r: Resume): boolean {
+  return (
+    !r.contact.fullName &&
+    !r.summary &&
+    r.experience.length === 0 &&
+    r.education.length === 0 &&
+    r.skills.length === 0 &&
+    r.projects.length === 0 &&
+    r.certifications.length === 0
   )
 }
