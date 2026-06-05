@@ -8,6 +8,8 @@ const TEMPLATES: { id: TemplateId; label: string; desc: string }[] = [
   { id: "classic", label: "Classic", desc: "Traditional serif headings for corporate roles." },
   { id: "minimal", label: "Minimal", desc: "Lots of whitespace, lightweight and clean." },
   { id: "ats", label: "ATS-Safe", desc: "Single column, standard headings, maximum parseability." },
+  { id: "twocolumn", label: "Two-Column", desc: "Skills & education in a sidebar, experience in the main column." },
+  { id: "creative", label: "Creative", desc: "Bold accent header and section underlines for design-forward roles." },
 ]
 
 export function Templates({
