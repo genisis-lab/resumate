@@ -1,10 +1,18 @@
 import { Resume } from "../types/resume"
 import { resumeToPlainText, wordCount } from "./resumeText"
+import { aiClientOverrides } from "./byok"
 
 export interface AtsSuggestion {
   section: string
   severity: "high" | "medium" | "low"
   text: string
+}
+
+export interface SectionScore {
+  label: string
+  score: number
+  max: number
+  note?: string
 }
 
 export interface AtsResult {
@@ -14,6 +22,67 @@ export interface AtsResult {
   suggestions: AtsSuggestion[]
   summary: string
   source: "ai" | "local"
+  // Optional per-category breakdown shown as bars in the analyzer.
+  sections?: SectionScore[]
+}
+
+// Build a transparent per-category score breakdown (always computed locally so
+// the analyzer can show it even for AI results).
+export function buildSectionScores(resume: Resume, jd: string): SectionScore[] {
+  const resumeText = resumeToPlainText(resume).toLowerCase()
+  const keywords = extractKeywords(jd)
+  const matched = keywords.filter((k) => resumeText.includes(k.toLowerCase()))
+  const kwPct = keywords.length ? matched.length / keywords.length : 0
+  const bulletCount = resume.experience.reduce((n, e) => n + e.bullets.filter(Boolean).length, 0)
+  const quantified = resume.experience.some((e) => e.bullets.some((b) => /\d/.test(b)))
+  const wc = wordCount(resume)
+
+  const contact = (resume.contact.email ? 1 : 0) + (resume.contact.phone ? 1 : 0) + (resume.contact.location ? 1 : 0)
+  const summaryScore = resume.summary.length > 80 ? 15 : resume.summary.length > 20 ? 8 : 0
+  const expBase = resume.experience.length ? 10 : 0
+  const expBullets = Math.min(12, bulletCount * 2)
+  const expQuant = quantified ? 8 : 0
+  const skills = resume.skills.length ? Math.min(15, resume.skills.reduce((n, g) => n + g.items.length, 0)) : 0
+  const lengthOk = wc >= 250 && wc <= 850
+
+  return [
+    {
+      label: "Keyword match",
+      score: Math.round(kwPct * 30),
+      max: 30,
+      note: `${matched.length}/${keywords.length || 0} target keywords found`,
+    },
+    {
+      label: "Contact info",
+      score: Math.round((contact / 3) * 10),
+      max: 10,
+      note: contact === 3 ? "Complete" : "Add email, phone, and location",
+    },
+    {
+      label: "Summary",
+      score: summaryScore,
+      max: 15,
+      note: summaryScore === 15 ? "Good length" : "Add a 2-3 sentence summary",
+    },
+    {
+      label: "Experience",
+      score: Math.min(30, expBase + expBullets + expQuant),
+      max: 30,
+      note: quantified ? `${bulletCount} bullets, quantified` : `${bulletCount} bullets, add metrics`,
+    },
+    {
+      label: "Skills",
+      score: skills,
+      max: 15,
+      note: skills ? "Present" : "Add a skills section",
+    },
+    {
+      label: "Length & format",
+      score: lengthOk ? 10 : wc ? 5 : 0,
+      max: 10,
+      note: lengthOk ? `${wc} words — good` : `${wc} words — aim for 250-850`,
+    },
+  ]
 }
 
 // ---- Stopwords for keyword extraction ----
@@ -128,6 +197,7 @@ export function analyzeLocally(resume: Resume, jd: string): AtsResult {
     suggestions,
     summary,
     source: "local",
+    sections: buildSectionScores(resume, jd),
   }
 }
 
@@ -140,7 +210,7 @@ export async function analyzeWithAI(
   const res = await fetch("/api/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ resumeText, jobDescription: jd }),
+    body: JSON.stringify({ resumeText, jobDescription: jd, ...aiClientOverrides() }),
   })
   if (!res.ok) {
     const msg = await res.text().catch(() => "")
@@ -154,6 +224,7 @@ export async function analyzeWithAI(
     suggestions: data.suggestions ?? [],
     summary: data.summary ?? "",
     source: "ai",
+    sections: buildSectionScores(resume, jd),
   }
 }
 

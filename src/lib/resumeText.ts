@@ -1,61 +1,47 @@
-// Plain-text serialization of a resume, used by AI prompts and ATS analysis,
-// plus a quick word counter for length checks.
+import { Resume, SectionKey } from "../types/resume"
 
-import { Resume } from "../types/resume"
+// Flatten a resume into plain text — used by the ATS analyzer and keyword matching.
+export function resumeToPlainText(r: Resume): string {
+  const lines: string[] = []
+  const c = r.contact
+  lines.push(c.fullName, c.headline, c.location, c.email)
+  if (r.summary) lines.push(r.summary)
 
-function line(parts: Array<string | undefined>, sep = " | "): string {
-  return parts.filter((p) => p && p.trim()).join(sep)
+  const order = r.settings.sectionOrder.filter(
+    (s) => !r.settings.hidden.includes(s),
+  )
+  for (const key of order) writeSection(key, r, lines)
+  return lines.filter(Boolean).join("\n")
 }
 
-export function resumeToPlainText(r: Resume): string {
-  const out: string[] = []
-  const c = r.contact
-  if (c.fullName) out.push(c.fullName)
-  if (c.headline) out.push(c.headline)
-  out.push(line([c.email, c.phone, c.location, c.website, c.linkedin, c.github]))
-
-  if (r.summary) {
-    out.push("", "SUMMARY", r.summary)
+function writeSection(key: SectionKey, r: Resume, lines: string[]) {
+  switch (key) {
+    case "experience":
+      for (const e of r.experience) {
+        lines.push(`${e.role} at ${e.company}`, e.location)
+        e.bullets.forEach((b) => lines.push(b))
+      }
+      break
+    case "education":
+      for (const e of r.education) {
+        lines.push(`${e.degree} ${e.field}`, e.school, e.details)
+      }
+      break
+    case "skills":
+      for (const g of r.skills) lines.push(`${g.category}: ${g.items.join(", ")}`)
+      break
+    case "projects":
+      for (const p of r.projects) {
+        lines.push(p.name, p.description)
+        p.bullets.forEach((b) => lines.push(b))
+      }
+      break
+    case "certifications":
+      for (const c of r.certifications) lines.push(`${c.name} — ${c.issuer} ${c.date}`)
+      break
+    case "summary":
+      break
   }
-
-  if (r.experience.length) {
-    out.push("", "EXPERIENCE")
-    for (const e of r.experience) {
-      out.push(line([e.role, e.company, e.location]))
-      out.push(line([e.startDate, e.current ? "Present" : e.endDate], " - "))
-      for (const b of e.bullets.filter(Boolean)) out.push(`- ${b}`)
-    }
-  }
-
-  if (r.education.length) {
-    out.push("", "EDUCATION")
-    for (const e of r.education) {
-      out.push(line([e.degree, e.field, e.school, e.location]))
-      out.push(line([e.startDate, e.endDate], " - "))
-      if (e.details) out.push(e.details)
-    }
-  }
-
-  if (r.skills.length) {
-    out.push("", "SKILLS")
-    for (const g of r.skills) out.push(`${g.category ? g.category + ": " : ""}${g.items.join(", ")}`)
-  }
-
-  if (r.projects.length) {
-    out.push("", "PROJECTS")
-    for (const p of r.projects) {
-      out.push(line([p.name, p.link]))
-      if (p.description) out.push(p.description)
-      for (const b of p.bullets.filter(Boolean)) out.push(`- ${b}`)
-    }
-  }
-
-  if (r.certifications.length) {
-    out.push("", "CERTIFICATIONS")
-    for (const ct of r.certifications) out.push(line([ct.name, ct.issuer, ct.date]))
-  }
-
-  return out.join("\n").trim()
 }
 
 export function wordCount(r: Resume): number {
