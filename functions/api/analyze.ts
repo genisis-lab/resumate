@@ -17,6 +17,9 @@ interface Env {
 interface AnalyzeBody {
   resumeText: string
   jobDescription: string
+  clientKey?: string
+  clientUrl?: string
+  clientModel?: string
 }
 
 const SYSTEM_PROMPT = `You are an expert technical recruiter and ATS (Applicant Tracking System) analyst.
@@ -62,11 +65,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     return new Response("Forbidden", { status: 403 })
   }
 
-  if (!env.AI_API_KEY) {
-    // No key configured -> tell the client to use its local fallback.
-    return new Response("AI not configured", { status: 501 })
-  }
-
   let body: AnalyzeBody
   try {
     body = (await request.json()) as AnalyzeBody
@@ -80,8 +78,15 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     return new Response("Input too large", { status: 413 })
   }
 
-  const url = env.AI_API_URL || "https://api.openai.com/v1/chat/completions"
-  const model = env.AI_MODEL || "gpt-4o-mini"
+  // Prefer a visitor-supplied key (BYOK); fall back to the site key.
+  const apiKey = body.clientKey || env.AI_API_KEY
+  if (!apiKey) {
+    // No key available -> tell the client to use its local fallback.
+    return new Response("AI not configured", { status: 501 })
+  }
+
+  const url = body.clientUrl || env.AI_API_URL || "https://api.openai.com/v1/chat/completions"
+  const model = body.clientModel || env.AI_MODEL || "gpt-4o-mini"
 
   const userPrompt = `JOB DESCRIPTION:\n${body.jobDescription}\n\n---\n\nRESUME:\n${body.resumeText}`
 
@@ -89,7 +94,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${env.AI_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model,
