@@ -19,6 +19,8 @@ const TEMPLATES: { id: TemplateId; label: string }[] = [
 
 const ACCENTS = ["#2563eb", "#0f766e", "#7c3aed", "#be123c", "#b45309", "#111827"]
 
+const swatchStyle = (color: string): React.CSSProperties => ({ background: color })
+
 export function Builder({
   resume,
   setResume,
@@ -151,7 +153,7 @@ export function Builder({
             <button
               key={a}
               className={`swatch ${resume.settings.accent === a ? "active" : ""}`}
-              style= background: a 
+              style={swatchStyle(a)}
               onClick={() => setSettings({ accent: a })}
               title={a}
             />
