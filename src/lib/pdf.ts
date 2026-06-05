@@ -5,6 +5,10 @@
 // works under both the Vite build (Cloudflare) and the esbuild offline build
 // without any bundler-specific url import. Only the worker code is fetched --
 // the PDF itself is parsed entirely in the browser and never uploaded.
+// @ts-ignore -- pdfjs-dist 4.x exposes its types through an ESM "exports" map
+// that some strict tsc moduleResolution setups fail to resolve. The module is
+// still bundled normally by Vite at build time, so this is a type-only
+// suppression and does not affect runtime behavior.
 import * as pdfjsLib from "pdfjs-dist"
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
