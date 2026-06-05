@@ -4,7 +4,7 @@ import { ResumePreview } from "../templates/ResumePreview"
 import { EditorForm } from "../components/EditorForm"
 import { exportPdf } from "../lib/exportPdf"
 import { exportDocx } from "../lib/exportDocx"
-import { exportResumeJSON, exportAllJSON, clearAllData, loadStore, deleteResume } from "../lib/storage"
+import { exportResumeJSON, exportAllJSON, importAllJSON, duplicateResume, clearAllData, loadStore, deleteResume } from "../lib/storage"
 import { createEmptyResume, createSampleResume } from "../data/sample"
 import { importResumeFromFile } from "../lib/importResume"
 import { completeness, qualityFlags } from "../lib/quality"
@@ -34,6 +34,7 @@ export function Builder({
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const resumeFileRef = useRef<HTMLInputElement>(null)
+  const backupFileRef = useRef<HTMLInputElement>(null)
   const [importing, setImporting] = useState(false)
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit")
   const store = loadStore()
@@ -78,6 +79,26 @@ export function Builder({
     }
   }
 
+  async function onRestoreBackup(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const count = await importAllJSON(file)
+      const s = loadStore()
+      switchResume(s.resumes[0].id)
+      alert(`Restored ${count} resume${count === 1 ? "" : "s"} from your backup.`)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Could not restore that backup.")
+    } finally {
+      e.target.value = ""
+    }
+  }
+
+  function onDuplicate() {
+    const copy = duplicateResume(resume.id)
+    if (copy) switchResume(copy.id)
+  }
+
   return (
     <div className="builder">
       <div className="toolbar no-print">
@@ -95,6 +116,7 @@ export function Builder({
             ))}
           </select>
           <button className="btn-ghost small" onClick={() => replaceResume(createEmptyResume("Untitled"))}>+ New</button>
+          <button className="btn-ghost small" onClick={onDuplicate} title="Make an editable copy of this resume">Duplicate</button>
           <button
             className="btn-ghost small"
             title="Fill the editor with a complete example you can edit"
@@ -178,6 +200,8 @@ export function Builder({
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={onImport} />
           <button className="btn-ghost small" onClick={() => exportResumeJSON(resume)}>Export JSON</button>
           <button className="btn-ghost small" onClick={() => exportAllJSON()} title="Download a backup of every saved resume">Backup all</button>
+          <button className="btn-ghost small" onClick={() => backupFileRef.current?.click()} title="Restore resumes from a backup file">Restore</button>
+          <input ref={backupFileRef} type="file" accept="application/json,.json" hidden onChange={onRestoreBackup} />
           <button className="btn-secondary small" onClick={() => navigate("/analyze")}>✨ ATS Check</button>
           <button className="btn-secondary small" onClick={() => exportDocx(resume)}>⬇ Word</button>
           <button className="btn-primary small" onClick={() => exportPdf()}>⬇ PDF</button>
