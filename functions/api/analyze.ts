@@ -31,6 +31,9 @@ Return STRICT JSON only (no markdown, no prose) matching this TypeScript type:
 }
 Be specific and actionable. Prioritize the highest-impact changes. Limit keywords to ~15 each and suggestions to ~6.`
 
+// Hard cap on combined input size to limit abuse / runaway cost.
+const MAX_CHARS = 24000
+
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -38,8 +41,26 @@ function json(data: unknown, status = 200): Response {
   })
 }
 
+// Basic abuse guard: reject cross-origin POSTs so the server-side AI key can't
+// be used as an open proxy from other websites. Same-origin app requests send a
+// matching Origin/Referer; non-browser callers that omit both are allowed
+// through (the key requirement below still gates real usage).
+function sameOrigin(request: Request): boolean {
+  const origin = request.headers.get("Origin") || request.headers.get("Referer")
+  if (!origin) return true
+  try {
+    return new URL(origin).host === new URL(request.url).host
+  } catch {
+    return false
+  }
+}
+
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   const { request, env } = context
+
+  if (!sameOrigin(request)) {
+    return new Response("Forbidden", { status: 403 })
+  }
 
   if (!env.AI_API_KEY) {
     // No key configured -> tell the client to use its local fallback.
@@ -54,6 +75,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   }
   if (!body.resumeText || !body.jobDescription) {
     return new Response("Missing resumeText or jobDescription", { status: 400 })
+  }
+  if ((body.resumeText.length + body.jobDescription.length) > MAX_CHARS) {
+    return new Response("Input too large", { status: 413 })
   }
 
   const url = env.AI_API_URL || "https://api.openai.com/v1/chat/completions"
@@ -94,12 +118,4 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     return new Response("AI returned malformed JSON", { status: 502 })
   }
   return json(parsed)
-}
-
-// Reject non-POST methods cleanly.
-export const onRequest: PagesFunction<Env> = async (context) => {
-  if (context.request.method !== "POST") {
-    return new Response("Method Not Allowed", { status: 405 })
-  }
-  return context.next()
 }
