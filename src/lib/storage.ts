@@ -1,6 +1,34 @@
 import { Resume } from "../types/resume"
 import { createEmptyResume } from "../data/sample"
 
+// Backfill fields that may be missing on older / imported / shared resumes so
+// new features never crash on legacy data.
+export function normalizeResume(r: any): Resume {
+  const base = createEmptyResume(r?.name || "My Resume")
+  const s = (r && r.settings) || {}
+  return {
+    ...base,
+    ...r,
+    contact: { ...base.contact, ...((r && r.contact) || {}) },
+    summary: typeof r?.summary === "string" ? r.summary : "",
+    experience: Array.isArray(r?.experience) ? r.experience : [],
+    education: Array.isArray(r?.education) ? r.education : [],
+    skills: Array.isArray(r?.skills) ? r.skills : [],
+    projects: Array.isArray(r?.projects) ? r.projects : [],
+    certifications: Array.isArray(r?.certifications) ? r.certifications : [],
+    customSections: Array.isArray(r?.customSections) ? r.customSections : [],
+    settings: {
+      ...base.settings,
+      ...s,
+      sectionOrder:
+        Array.isArray(s.sectionOrder) && s.sectionOrder.length
+          ? s.sectionOrder
+          : base.settings.sectionOrder,
+      hidden: Array.isArray(s.hidden) ? s.hidden : [],
+    },
+  }
+}
+
 const STORE_KEY = "resumate.resumes.v1"
 const ACTIVE_KEY = "resumate.active.v1"
 const THEME_KEY = "resumate.theme.v1"
@@ -28,6 +56,7 @@ export function loadStore(): StoreShape {
     persistStore(store)
     setActiveId(first.id)
   }
+  store.resumes = store.resumes.map(normalizeResume)
   return store
 }
 

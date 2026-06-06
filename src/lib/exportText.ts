@@ -75,6 +75,20 @@ export function resumeToMarkdown(r: Resume): string {
     const body = sectionMarkdown(key, r)
     if (body) out.push(`## ${SECTION_LABELS[key]}`, body, "")
   }
+  for (const sec of r.customSections || []) {
+    if (sec.hidden) continue
+    const lines: string[] = []
+    for (const it of sec.items) {
+      const head = [it.title, it.date].filter(Boolean).join(" - ")
+      if (head) lines.push(`### ${head}`)
+      if (it.subtitle) lines.push(`*${it.subtitle}*`)
+      if (it.description) lines.push(it.description)
+      for (const b of it.bullets.filter(Boolean)) lines.push(`- ${b}`)
+      lines.push("")
+    }
+    const body = lines.join("\n").trim()
+    if (sec.title && body) out.push(`## ${sec.title}`, body, "")
+  }
   return out.join("\n").trim() + "\n"
 }
 
