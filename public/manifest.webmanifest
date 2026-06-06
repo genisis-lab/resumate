@@ -1,0 +1,19 @@
+{
+  "name": "ResuMate \u2014 Resume Builder",
+  "short_name": "ResuMate",
+  "description": "Build an ATS-optimized resume in minutes. No signup, no upload.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0b1120",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
