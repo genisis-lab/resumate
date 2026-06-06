@@ -22,6 +22,7 @@ export function createEmptyResume(name = "My Resume"): Resume {
     skills: [],
     projects: [],
     certifications: [],
+    customSections: [],
     settings: {
       template: "modern",
       accent: "#2563eb",
@@ -123,6 +124,22 @@ export function createSampleResume(): Resume {
         name: "Nielsen Norman UX Certification",
         issuer: "NN/g",
         date: "2022",
+      },
+    ],
+    customSections: [
+      {
+        id: uid("cs"),
+        title: "Awards & Recognition",
+        items: [
+          {
+            id: uid("ci"),
+            title: "Designer of the Year",
+            subtitle: "Brightwave",
+            date: "2023",
+            description: "",
+            bullets: [],
+          },
+        ],
       },
     ],
   }

@@ -11,6 +11,14 @@ export function resumeToPlainText(r: Resume): string {
     (s) => !r.settings.hidden.includes(s),
   )
   for (const key of order) writeSection(key, r, lines)
+  for (const sec of r.customSections || []) {
+    if (sec.hidden) continue
+    if (sec.title) lines.push(sec.title)
+    for (const it of sec.items) {
+      lines.push(it.title, it.subtitle, it.date, it.description)
+      it.bullets.forEach((b) => lines.push(b))
+    }
+  }
   return lines.filter(Boolean).join("\n")
 }
 

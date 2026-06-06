@@ -3,6 +3,7 @@ import { Resume } from "../types/resume"
 import {
   getActiveId,
   loadStore,
+  normalizeResume,
   saveResume,
   setActiveId,
 } from "../lib/storage"
@@ -16,7 +17,7 @@ export function useResume() {
   const [resume, setResumeState] = useState<Resume>(() => {
     const store = loadStore()
     const activeId = getActiveId()
-    return store.resumes.find((r) => r.id === activeId) ?? store.resumes[0]
+    return normalizeResume(store.resumes.find((r) => r.id === activeId) ?? store.resumes[0])
   })
 
   const timer = useRef<number | undefined>(undefined)
@@ -81,15 +82,16 @@ export function useResume() {
     const found = store.resumes.find((r) => r.id === id)
     if (found) {
       setActiveId(id)
-      setResumeState(found)
+      setResumeState(normalizeResume(found))
       resetHistory()
     }
   }, [resetHistory])
 
   const replaceResume = useCallback((next: Resume) => {
-    setActiveId(next.id)
-    saveResume(next)
-    setResumeState(next)
+    const norm = normalizeResume(next)
+    setActiveId(norm.id)
+    saveResume(norm)
+    setResumeState(norm)
     resetHistory()
   }, [resetHistory])
 
