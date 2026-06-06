@@ -10,6 +10,9 @@ import { Settings } from "./pages/Settings"
 import { Interview } from "./pages/Interview"
 import { getTheme, setTheme } from "./lib/storage"
 import { readSharedResume, clearShareParam } from "./lib/share"
+import { useInstallPrompt } from "./lib/pwa"
+import { exportPdf } from "./lib/exportPdf"
+import { ShortcutsModal } from "./components/ShortcutsModal"
 
 function ThemeToggle() {
   const [theme, setT] = useState<"light" | "dark">(getTheme())
@@ -28,10 +31,19 @@ function ThemeToggle() {
   )
 }
 
+function InstallButton() {
+  const { canInstall, promptInstall } = useInstallPrompt()
+  if (!canInstall) return null
+  return (
+    <button className="btn-ghost small" onClick={promptInstall} title="Install ResuMate as an app">⬇ Install</button>
+  )
+}
+
 export default function App() {
   const route = useRoute()
   const { resume, setResume, switchResume, replaceResume, savedAt, undo, redo, canUndo, canRedo } = useResume()
   const sharedChecked = useRef(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
 
   const isApp = route !== "/"
 
@@ -67,8 +79,36 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey)
   }, [undo, redo])
 
+  // App-level shortcuts: "?" opens help, Ctrl/Cmd+S exports PDF in the editor, Esc closes.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null
+      const tag = t?.tagName?.toLowerCase()
+      const typing = tag === "input" || tag === "textarea" || t?.isContentEditable
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && e.key.toLowerCase() === "s") {
+        if (route === "/builder") {
+          e.preventDefault()
+          exportPdf()
+        }
+        return
+      }
+      if (e.key === "Escape") {
+        setShowShortcuts(false)
+        return
+      }
+      if (e.key === "?" && !typing) {
+        e.preventDefault()
+        setShowShortcuts((s) => !s)
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [route])
+
   return (
     <div className="app">
+      <a className="skip-link" href="#main">Skip to content</a>
       <nav className="nav no-print">
         <button className="brand" onClick={() => navigate("/")} aria-label="ResuMate home">
           <span className="brand-mark" aria-hidden="true">◈</span> ResuMate
@@ -84,12 +124,14 @@ export default function App() {
           </div>
         )}
         <div className="nav-right">
-          {isApp && savedAt > 0 && <span className="saved-pill">Saved</span>}
+          {isApp && savedAt > 0 && <span className="saved-pill" role="status" aria-live="polite">Saved</span>}
+          <InstallButton />
+          <button className="icon-btn" onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (press ?)" aria-label="Keyboard shortcuts">⌨</button>
           <ThemeToggle />
         </div>
       </nav>
 
-      <main className="main">
+      <main className="main" id="main">
         {route === "/" && <Landing />}
         {route === "/builder" && (
           <Builder
@@ -109,6 +151,7 @@ export default function App() {
         {route === "/interview" && <Interview resume={resume} />}
         {route === "/settings" && <Settings />}
       </main>
+      {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
     </div>
   )
 }
