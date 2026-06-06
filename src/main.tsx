@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client"
 import App from "./App"
 import { ErrorBoundary } from "./components/ErrorBoundary"
 import { getTheme, setTheme } from "./lib/storage"
+import { registerServiceWorker } from "./lib/pwa"
 import "./index.css"
 
 // Apply persisted theme before first paint.
@@ -15,3 +16,5 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     </ErrorBoundary>
   </React.StrictMode>,
 )
+
+registerServiceWorker()

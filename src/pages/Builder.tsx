@@ -1,15 +1,18 @@
-import React, { useMemo, useRef, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { Resume, TemplateId } from "../types/resume"
 import { ResumePreview } from "../templates/ResumePreview"
 import { EditorForm } from "../components/EditorForm"
+import { ShareModal } from "../components/ShareModal"
 import { exportPdf } from "../lib/exportPdf"
 import { exportDocx } from "../lib/exportDocx"
-import { exportResumeJSON, exportAllJSON, importAllJSON, duplicateResume, clearAllData, loadStore, deleteResume } from "../lib/storage"
+import { exportResumeJSON, exportAllJSON, importAllJSON, duplicateResume, clearAllData, loadStore, deleteResume, normalizeResume } from "../lib/storage"
 import { exportMarkdown, exportPlainText, exportJsonResume } from "../lib/exportText"
-import { buildShareUrl } from "../lib/share"
 import { createEmptyResume, createSampleResume } from "../data/sample"
 import { importResumeFromFile } from "../lib/importResume"
 import { completeness, qualityFlags } from "../lib/quality"
+import { measurePageCount, nextFrame } from "../lib/fitPage"
+import { findProofIssues, autoFixSpelling } from "../lib/proofread"
+import { fromJsonResume } from "../lib/jsonResume"
 import { Density } from "../types/resume"
 import { navigate } from "../router"
 
@@ -56,9 +59,15 @@ export function Builder({
   const backupFileRef = useRef<HTMLInputElement>(null)
   const [importing, setImporting] = useState(false)
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit")
+  const [showProof, setShowProof] = useState(false)
+  const [showShare, setShowShare] = useState(false)
+  const [pageCount, setPageCount] = useState(1)
+  const [fitting, setFitting] = useState(false)
+  const previewRef = useRef<HTMLDivElement>(null)
   const store = loadStore()
   const comp = useMemo(() => completeness(resume), [resume])
   const flags = useMemo(() => qualityFlags(resume), [resume])
+  const proofIssues = useMemo(() => (showProof ? findProofIssues(resume) : []), [showProof, resume])
 
   const setSettings = (patch: Partial<Resume["settings"]>) =>
     setResume((r) => ({ ...r, settings: { ...r.settings, ...patch } }))
@@ -69,11 +78,20 @@ export function Builder({
     const reader = new FileReader()
     reader.onload = () => {
       try {
-        const data = JSON.parse(String(reader.result)) as Resume
-        const next: Resume = { ...createEmptyResume(), ...data, id: createEmptyResume().id }
+        const data = JSON.parse(String(reader.result)) as any
+        let next: Resume
+        if (data && data.contact && data.settings) {
+          // Native ResuMate export.
+          next = normalizeResume({ ...data, id: createEmptyResume().id })
+        } else if (data && (data.basics || data.work || data.$schema)) {
+          // JSON Resume open standard.
+          next = fromJsonResume(data)
+        } else {
+          throw new Error("unrecognized")
+        }
         replaceResume(next)
       } catch {
-        alert("That file could not be read as a ResuMate JSON resume.")
+        alert("That file could not be read. Import a ResuMate JSON export or a JSON Resume file.")
       }
     }
     reader.readAsText(file)
@@ -118,13 +136,34 @@ export function Builder({
     if (copy) switchResume(copy.id)
   }
 
-  async function onShare() {
-    const url = buildShareUrl(resume)
+  // Measure how many printed pages the preview spans.
+  useEffect(() => {
+    const el = previewRef.current
+    if (!el) return
+    const measure = () => setPageCount(measurePageCount(el))
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [resume])
+
+  // Shrink font + tighten density until the resume fits on a single page.
+  async function fitToOnePage() {
+    setFitting(true)
     try {
-      await navigator.clipboard.writeText(url)
-      alert("Read-only share link copied to your clipboard! Anyone who opens it can load a copy of this resume.")
-    } catch {
-      prompt("Copy this read-only share link:", url)
+      setSettings({ density: "compact" })
+      let scale = resume.settings.fontScale
+      for (let i = 0; i < 8; i++) {
+        await nextFrame()
+        const el = previewRef.current
+        if (!el) break
+        if (measurePageCount(el) <= 1) break
+        scale = Math.max(0.8, Number((scale - 0.05).toFixed(2)))
+        setSettings({ fontScale: scale })
+        if (scale <= 0.8) break
+      }
+    } finally {
+      setFitting(false)
     }
   }
 
@@ -212,7 +251,7 @@ export function Builder({
           <span className="toolbar-label">Size</span>
           <input
             type="range"
-            min={0.9}
+            min={0.8}
             max={1.15}
             step={0.05}
             value={resume.settings.fontScale}
@@ -236,6 +275,12 @@ export function Builder({
           <button className="btn-ghost small" onClick={redo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)">↷ Redo</button>
         </div>
 
+        <div className="toolbar-group">
+          <span className={`page-badge ${pageCount > 1 ? "over" : ""}`} title="Estimated printed length">{pageCount} page{pageCount === 1 ? "" : "s"}</span>
+          <button className="btn-ghost small" onClick={fitToOnePage} disabled={fitting} title="Shrink text and spacing to fit one page">{fitting ? "Fitting\u2026" : "Fit to 1 page"}</button>
+          <button className={`btn-ghost small ${showProof ? "active" : ""}`} onClick={() => setShowProof((s) => !s)} title="Check spelling and common writing issues">Proofread</button>
+        </div>
+
         <div className="toolbar-group right">
           <button className="btn-ghost small" disabled={importing} onClick={() => resumeFileRef.current?.click()}>
             {importing ? "Reading\u2026" : "\u2b06 Import r\u00e9sum\u00e9"}
@@ -247,7 +292,7 @@ export function Builder({
           <button className="btn-ghost small" onClick={() => exportMarkdown(resume)} title="Export as Markdown">.md</button>
           <button className="btn-ghost small" onClick={() => exportPlainText(resume)} title="Export as plain text">.txt</button>
           <button className="btn-ghost small" onClick={() => exportJsonResume(resume)} title="Export in the JSON Resume standard">JSON Resume</button>
-          <button className="btn-ghost small" onClick={onShare} title="Copy a read-only share link">🔗 Share</button>
+          <button className="btn-ghost small" onClick={() => setShowShare(true)} title="Share a read-only link or QR code">🔗 Share</button>
           <button className="btn-ghost small" onClick={() => exportAllJSON()} title="Download a backup of every saved resume">Backup all</button>
           <button className="btn-ghost small" onClick={() => backupFileRef.current?.click()} title="Restore resumes from a backup file">Restore</button>
           <input ref={backupFileRef} type="file" accept="application/json,.json" hidden onChange={onRestoreBackup} />
@@ -284,15 +329,36 @@ export function Builder({
               </ul>
             )}
           </div>
+          {showProof && (
+            <div className="proof-panel">
+              <div className="proof-head">
+                <strong>Proofreader</strong>
+                <div className="proof-actions">
+                  <button className="btn-ghost tiny" onClick={() => setResume((r) => autoFixSpelling(r))} title="Auto-fix common misspellings">Fix spelling</button>
+                  <button className="btn-ghost tiny" onClick={() => setShowProof(false)} aria-label="Close proofreader">✕</button>
+                </div>
+              </div>
+              {proofIssues.length === 0 ? (
+                <p className="proof-clean">No issues found. Looking sharp! ✨</p>
+              ) : (
+                <ul className="proof-list">
+                  {proofIssues.map((it, i) => (
+                    <li key={i}>{it}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           <EditorForm resume={resume} setResume={setResume} />
           <p className="privacy-note no-print">🔒 Everything you enter stays in this browser. No account, no upload. Use “Backup all” to save a copy, or “Clear data” to wipe everything.</p>
         </div>
         <div className="preview-pane">
-          <div className="preview-scroll">
+          <div className="preview-scroll" ref={previewRef}>
             <ResumePreview resume={resume} />
           </div>
         </div>
       </div>
+      {showShare && <ShareModal resume={resume} onClose={() => setShowShare(false)} />}
     </div>
   )
 }
