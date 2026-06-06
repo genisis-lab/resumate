@@ -161,6 +161,33 @@ function renderSection(key: SectionKey, r: Resume, hl: HL) {
   }
 }
 
+// Render free-form custom sections (Awards, Languages, etc.).
+function renderCustom(r: Resume, hl: HL) {
+  return (r.customSections || [])
+    .filter((sec) => !sec.hidden && sec.items.length > 0)
+    .map((sec) => (
+      <Section key={sec.id} title={sec.title || "Section"}>
+        {sec.items.map((it) => (
+          <div className="rp-entry" key={it.id}>
+            <div className="rp-entry-head">
+              <span className="rp-entry-title">{it.title}</span>
+              {it.date && <span className="rp-entry-date">{it.date}</span>}
+            </div>
+            {it.subtitle && <div className="rp-entry-meta">{it.subtitle}</div>}
+            {it.description && <p className="rp-detail">{hl(it.description)}</p>}
+            {it.bullets.filter(Boolean).length > 0 && (
+              <ul className="rp-bullets">
+                {it.bullets.filter(Boolean).map((b, i) => (
+                  <li key={i}>{hl(b)}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ))}
+      </Section>
+    ))
+}
+
 // Sections that live in the narrow sidebar for the two-column template.
 const SIDEBAR_KEYS: SectionKey[] = ["skills", "education", "certifications"]
 
@@ -189,7 +216,10 @@ export function ResumePreview({
         <Contact r={resume} />
         <div className="rp-two">
           <aside className="rp-aside">{aside.map((key) => renderSection(key, resume, hl))}</aside>
-          <div className="rp-main">{main.map((key) => renderSection(key, resume, hl))}</div>
+          <div className="rp-main">
+            {main.map((key) => renderSection(key, resume, hl))}
+            {renderCustom(resume, hl)}
+          </div>
         </div>
       </div>
     )
@@ -198,7 +228,10 @@ export function ResumePreview({
   return (
     <div id="resume-print-area" className={className} style={style}>
       <Contact r={resume} />
-      <div className="rp-body">{order.map((key) => renderSection(key, resume, hl))}</div>
+      <div className="rp-body">
+        {order.map((key) => renderSection(key, resume, hl))}
+        {renderCustom(resume, hl)}
+      </div>
     </div>
   )
 }

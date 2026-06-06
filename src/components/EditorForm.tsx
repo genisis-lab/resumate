@@ -8,6 +8,7 @@ import {
   TextArea,
   TextField,
 } from "./fields"
+import { CustomSectionsEditor } from "./CustomSections"
 
 type Setter = (updater: (r: Resume) => Resume) => void
 
@@ -21,6 +22,7 @@ export function EditorForm({
   const update: Setter = (updater) => setResume((prev) => updater(prev))
   const [writingSummary, setWritingSummary] = useState(false)
   const [summaryErr, setSummaryErr] = useState("")
+  const [secDrag, setSecDrag] = useState<number | null>(null)
 
   function moveArr<T>(arr: T[], i: number, dir: -1 | 1): T[] {
     const j = i + dir
@@ -51,6 +53,18 @@ export function EditorForm({
       const j = i + dir
       if (i < 0 || j < 0 || j >= order.length) return r
       ;[order[i], order[j]] = [order[j], order[i]]
+      return { ...r, settings: { ...r.settings, sectionOrder: order } }
+    })
+  }
+
+  // Drag-and-drop reorder for the section list.
+  function moveSectionToIndex(from: number, to: number) {
+    update((r) => {
+      if (from === to || from < 0 || to < 0) return r
+      const order = [...r.settings.sectionOrder]
+      if (from >= order.length || to >= order.length) return r
+      const [m] = order.splice(from, 1)
+      order.splice(to, 0, m)
       return { ...r, settings: { ...r.settings, sectionOrder: order } }
     })
   }
@@ -223,6 +237,8 @@ export function EditorForm({
         ))}
       </div>
 
+      <CustomSectionsEditor resume={resume} setResume={setResume} />
+
       {/* Section order & visibility */}
       <div className="editor-section">
         <h3 className="editor-section-title">Section order &amp; visibility</h3>
@@ -231,7 +247,30 @@ export function EditorForm({
           {resume.settings.sectionOrder.map((key, i) => {
             const shown = !resume.settings.hidden.includes(key)
             return (
-              <div className="section-order-row" key={key}>
+              <div
+                className={`section-order-row ${secDrag === i ? "dragging" : ""}`}
+                key={key}
+                onDragOver={(e) => {
+                  if (secDrag !== null) e.preventDefault()
+                }}
+                onDrop={() => {
+                  if (secDrag !== null) moveSectionToIndex(secDrag, i)
+                  setSecDrag(null)
+                }}
+              >
+                <span
+                  className="drag-handle"
+                  draggable
+                  title="Drag to reorder"
+                  aria-label={`Drag ${SECTION_LABELS[key]} to reorder`}
+                  onDragStart={(e) => {
+                    setSecDrag(i)
+                    e.dataTransfer.effectAllowed = "move"
+                  }}
+                  onDragEnd={() => setSecDrag(null)}
+                >
+                  ⠿
+                </span>
                 <div className="section-order-move">
                   <button className="btn-ghost tiny" onClick={() => moveSection(key, -1)} disabled={i === 0} aria-label={`Move ${SECTION_LABELS[key]} up`}>↑</button>
                   <button className="btn-ghost tiny" onClick={() => moveSection(key, 1)} disabled={i === resume.settings.sectionOrder.length - 1} aria-label={`Move ${SECTION_LABELS[key]} down`}>↓</button>
