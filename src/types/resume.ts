@@ -70,6 +70,22 @@ export interface SkillGroup {
   items: string[]
 }
 
+export interface CustomEntry {
+  id: string
+  title: string
+  subtitle: string
+  date: string
+  description: string
+  bullets: string[]
+}
+
+export interface CustomSection {
+  id: string
+  title: string
+  hidden?: boolean
+  items: CustomEntry[]
+}
+
 export type Density = "compact" | "cozy" | "roomy"
 
 export interface ResumeSettings {
@@ -93,6 +109,7 @@ export interface Resume {
   skills: SkillGroup[]
   projects: ProjectItem[]
   certifications: CertificationItem[]
+  customSections: CustomSection[]
   settings: ResumeSettings
 }
 
