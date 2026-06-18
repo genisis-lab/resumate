@@ -2,7 +2,7 @@
 
 A fast, **no-signup**, privacy-first resume builder built with **React + Vite**. Edit with a live split-screen preview, get an **AI-powered ATS score** against any job description, and export to **PDF** and **Word (.docx)**. Everything is stored in your browser's `localStorage` — no account, nothing uploaded to a server. Installable as an offline app (PWA).
 
-> **Live:** https://resumate.pages.dev
+> **Live:** https://resumate.neil27.workers.dev
 
 ## Highlights
 
