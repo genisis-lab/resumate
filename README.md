@@ -137,4 +137,4 @@ Resume editing and offline ATS checks run in your browser. When you choose an AI
 
 ## License
 
-[MIT](./LICENSE)
+[MIT License](https://opensource.org/license/mit)
