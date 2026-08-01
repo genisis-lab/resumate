@@ -1,19 +1,16 @@
 import { useState } from "react"
 import { AI_PRESETS, getAiConfig, setAiConfig, clearAiConfig } from "../lib/byok"
 
-// Settings page: Bring-Your-Own-Key. Lets a visitor paste their own OpenAI-
-// compatible API key so every AI feature works without the site owner paying.
-// The key is stored only in this browser's localStorage and sent to the
-// same-origin proxy with each request.
+// Settings page: Bring-Your-Own-Key. Lets a visitor paste a key for one of
+// the supported providers. The key is stored only in this browser's
+// localStorage and sent to the same-origin proxy with each AI request.
 export function Settings() {
   const existing = getAiConfig()
+  const existingPreset = AI_PRESETS.find((p) => p.url === existing?.url)
   const [presetId, setPresetId] = useState<string>(() => {
-    if (!existing) return "openai"
-    const match = AI_PRESETS.find((p) => p.url === existing.url)
-    return match ? match.id : "custom"
+    return existingPreset?.id || "openai"
   })
   const [key, setKey] = useState(existing?.key || "")
-  const [url, setUrl] = useState(existing?.url || AI_PRESETS[0].url)
   const [model, setModel] = useState(existing?.model || AI_PRESETS[0].model)
   const [saved, setSaved] = useState(false)
 
@@ -21,7 +18,6 @@ export function Settings() {
     setPresetId(id)
     const preset = AI_PRESETS.find((p) => p.id === id)
     if (preset) {
-      setUrl(preset.url)
       setModel(preset.model)
     }
   }
@@ -31,7 +27,8 @@ export function Settings() {
       alert("Please paste an API key first.")
       return
     }
-    setAiConfig({ key: key.trim(), url: url.trim(), model: model.trim() })
+    const provider = AI_PRESETS.find((p) => p.id === presetId) || AI_PRESETS[0]
+    setAiConfig({ key: key.trim(), url: provider.url, model: model.trim() || provider.model })
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -50,8 +47,8 @@ export function Settings() {
       <h1>Settings</h1>
       <p className="page-sub">
         Bring your own AI key to power smart features (ATS scoring, rewriting, tailoring, cover
-        letters, interview prep). Your key is stored <strong>only in this browser</strong> and is
-        never sent anywhere except the AI provider you choose. No account needed.
+        letters, interview prep). Your key is stored <strong>only in this browser</strong>, then
+        sent through ResuMate's proxy with each AI request to the provider you choose. No account needed.
       </p>
 
       <div className="card">
@@ -62,10 +59,10 @@ export function Settings() {
             {AI_PRESETS.map((p) => (
               <option key={p.id} value={p.id}>{p.label}</option>
             ))}
-            <option value="custom">Custom (OpenAI-compatible)</option>
           </select>
         </label>
         {activePreset && <p className="hint">{activePreset.hint}</p>}
+        {!existingPreset && existing && <p className="error-text">The previously saved custom endpoint is no longer supported. Choose a provider and save again.</p>}
 
         <label className="field">
           <span className="field-label">API key</span>
@@ -76,18 +73,6 @@ export function Settings() {
             onChange={(e) => setKey(e.target.value)}
             placeholder="sk-..."
             autoComplete="off"
-            spellCheck={false}
-          />
-        </label>
-
-        <label className="field">
-          <span className="field-label">API URL (chat completions endpoint)</span>
-          <input
-            className="input"
-            type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://api.openai.com/v1/chat/completions"
             spellCheck={false}
           />
         </label>
@@ -121,8 +106,9 @@ export function Settings() {
           <li><strong>DeepSeek</strong> — low cost at platform.deepseek.com.</li>
         </ul>
         <p className="hint">
-          Without a key, ATS scoring still works using a built-in offline analyzer — you just won't
-          get the AI-written suggestions.
+          The key stays in this browser's local storage, but AI requests pass the key and selected
+          resume/job text through ResuMate's proxy to the provider. Without a key, ATS scoring still
+          works using the built-in offline analyzer.
         </p>
       </div>
     </div>

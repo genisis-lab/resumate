@@ -33,6 +33,32 @@ const STORE_KEY = "resumate.resumes.v1"
 const ACTIVE_KEY = "resumate.active.v1"
 const THEME_KEY = "resumate.theme.v1"
 
+function safeGet(key: string): string | null {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function safeSet(key: string, value: string): boolean {
+  try {
+    localStorage.setItem(key, value)
+    return true
+  } catch (e) {
+    console.warn("ResuMate: could not save to this browser's storage (it may be full or blocked).", e)
+    return false
+  }
+}
+
+function safeRemove(key: string): void {
+  try {
+    localStorage.removeItem(key)
+  } catch {
+    /* ignore storage failures */
+  }
+}
+
 interface StoreShape {
   resumes: Resume[]
 }
@@ -47,7 +73,7 @@ function safeParse<T>(raw: string | null, fallback: T): T {
 }
 
 export function loadStore(): StoreShape {
-  const store = safeParse<StoreShape>(localStorage.getItem(STORE_KEY), {
+  const store = safeParse<StoreShape>(safeGet(STORE_KEY), {
     resumes: [],
   })
   if (!store.resumes || store.resumes.length === 0) {
@@ -60,29 +86,25 @@ export function loadStore(): StoreShape {
   return store
 }
 
-export function persistStore(store: StoreShape): void {
-  try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(store))
-  } catch (e) {
-    console.warn("ResuMate: could not save to this browser's storage (it may be full or blocked).", e)
-  }
+export function persistStore(store: StoreShape): boolean {
+  return safeSet(STORE_KEY, JSON.stringify(store))
 }
 
 export function getActiveId(): string | null {
-  return localStorage.getItem(ACTIVE_KEY)
+  return safeGet(ACTIVE_KEY)
 }
 
 export function setActiveId(id: string): void {
-  localStorage.setItem(ACTIVE_KEY, id)
+  safeSet(ACTIVE_KEY, id)
 }
 
-export function saveResume(resume: Resume): void {
+export function saveResume(resume: Resume): boolean {
   const store = loadStore()
   const idx = store.resumes.findIndex((r) => r.id === resume.id)
   const updated = { ...resume, updatedAt: Date.now() }
   if (idx >= 0) store.resumes[idx] = updated
   else store.resumes.push(updated)
-  persistStore(store)
+  return persistStore(store)
 }
 
 export function deleteResume(id: string): void {
@@ -100,7 +122,7 @@ export function deleteResume(id: string): void {
 
 // ---- Theme (dark mode) ----
 export function getTheme(): "light" | "dark" {
-  const t = localStorage.getItem(THEME_KEY)
+  const t = safeGet(THEME_KEY)
   if (t === "dark" || t === "light") return t
   return window.matchMedia("(prefers-color-scheme: dark)").matches
     ? "dark"
@@ -108,7 +130,7 @@ export function getTheme(): "light" | "dark" {
 }
 
 export function setTheme(theme: "light" | "dark"): void {
-  localStorage.setItem(THEME_KEY, theme)
+  safeSet(THEME_KEY, theme)
   document.documentElement.dataset.theme = theme
 }
 
@@ -137,8 +159,15 @@ export function sanitize(name: string): string {
 
 // ---- Privacy: wipe all locally stored resume data ----
 export function clearAllData(): void {
-  localStorage.removeItem(STORE_KEY)
-  localStorage.removeItem(ACTIVE_KEY)
+  safeRemove(STORE_KEY)
+  safeRemove(ACTIVE_KEY)
+  safeRemove("resumate.jds.v1")
+  safeRemove("resumate.ai.v1")
+  try {
+    sessionStorage.removeItem("resumate.jd")
+  } catch {
+    /* ignore storage failures */
+  }
   // Theme preference is intentionally kept; it isn't personal resume data.
 }
 

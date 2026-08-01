@@ -32,6 +32,14 @@ const DENSITIES: { id: Density; label: string }[] = [
 ]
 
 const ACCENTS = ["#2563eb", "#0f766e", "#7c3aed", "#be123c", "#b45309", "#111827"]
+const ACCENT_NAMES: Record<string, string> = {
+  "#2563eb": "blue",
+  "#0f766e": "teal",
+  "#7c3aed": "violet",
+  "#be123c": "rose",
+  "#b45309": "amber",
+  "#111827": "ink",
+}
 
 const swatchStyle = (color: string): React.CSSProperties => ({ background: color })
 
@@ -246,6 +254,7 @@ export function Builder({
               style={swatchStyle(a)}
               onClick={() => setSettings({ accent: a })}
               title={a}
+              aria-label={`Accent color ${ACCENT_NAMES[a] || a}`}
             />
           ))}
           <span className="toolbar-label">Size</span>
@@ -256,6 +265,7 @@ export function Builder({
             step={0.05}
             value={resume.settings.fontScale}
             onChange={(e) => setSettings({ fontScale: Number(e.target.value) })}
+            aria-label="Font size"
           />
           <span className="toolbar-label">Density</span>
           <select
@@ -303,11 +313,15 @@ export function Builder({
       </div>
 
       <div className="mobile-tabs no-print" role="tablist" aria-label="Editor or preview">
-        <button type="button" role="tab" aria-selected={mobileView === "edit"} className={`chip ${mobileView === "edit" ? "active" : ""}`} onClick={() => setMobileView("edit")}>Editor</button>
-        <button type="button" role="tab" aria-selected={mobileView === "preview"} className={`chip ${mobileView === "preview" ? "active" : ""}`} onClick={() => setMobileView("preview")}>Preview</button>
+        <button type="button" role="tab" aria-selected={mobileView === "edit"} aria-controls="builder-editor" className={`chip ${mobileView === "edit" ? "active" : ""}`} onClick={() => setMobileView("edit")}>Editor</button>
+        <button type="button" role="tab" aria-selected={mobileView === "preview"} aria-controls="builder-preview" className={`chip ${mobileView === "preview" ? "active" : ""}`} onClick={() => setMobileView("preview")}>Preview</button>
+      </div>
+      <div className="mobile-actions no-print" aria-label="Mobile quick actions">
+        <button className="btn-secondary small" onClick={() => navigate("/analyze")}>✨ ATS Check</button>
+        <button className="btn-primary small" onClick={() => exportPdf()}>⬇ Export PDF</button>
       </div>
       <div className={`builder-grid show-${mobileView}`}>
-        <div className="editor-pane no-print">
+        <div id="builder-editor" className="editor-pane no-print" role="tabpanel" aria-label="Resume editor">
           <div className="completeness">
             <div className="completeness-row">
               <strong>Resume completeness</strong>
@@ -350,9 +364,9 @@ export function Builder({
             </div>
           )}
           <EditorForm resume={resume} setResume={setResume} />
-          <p className="privacy-note no-print">🔒 Everything you enter stays in this browser. No account, no upload. Use “Backup all” to save a copy, or “Clear data” to wipe everything.</p>
+          <p className="privacy-note no-print">🔒 Offline editing and checks stay in this browser. AI features send selected text to the configured provider. Use “Backup all” to save a copy, or “Clear data” to wipe everything.</p>
         </div>
-        <div className="preview-pane">
+        <div id="builder-preview" className="preview-pane" role="tabpanel" aria-label="Resume preview">
           <div className="preview-scroll" ref={previewRef}>
             <ResumePreview resume={resume} />
           </div>

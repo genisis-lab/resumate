@@ -1,8 +1,8 @@
 // Bring-Your-Own-Key: store an optional user-provided AI API config in
-// localStorage so the app can call any OpenAI-compatible provider without the
-// site owner paying for usage. The key stays on-device (never sent anywhere
-// except directly to the provider via our serverless proxy), matching the same
-// privacy model as the resume data itself.
+// localStorage so the app can use supported providers without the site owner
+// paying for BYOK usage. The key stays in this browser's storage, then is sent
+// to ResuMate's same-origin proxy with the AI request and forwarded to the
+// selected provider. It is never exposed to the site environment.
 
 export interface AiConfig {
   key: string

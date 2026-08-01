@@ -29,9 +29,9 @@ export interface AtsResult {
 // Build a transparent per-category score breakdown (always computed locally so
 // the analyzer can show it even for AI results).
 export function buildSectionScores(resume: Resume, jd: string): SectionScore[] {
-  const resumeText = resumeToPlainText(resume).toLowerCase()
+  const resumeText = resumeToPlainText(resume)
   const keywords = extractKeywords(jd)
-  const matched = keywords.filter((k) => resumeText.includes(k.toLowerCase()))
+  const matched = keywords.filter((k) => keywordInText(resumeText, k))
   const kwPct = keywords.length ? matched.length / keywords.length : 0
   const bulletCount = resume.experience.reduce((n, e) => n + e.bullets.filter(Boolean).length, 0)
   const quantified = resume.experience.some((e) => e.bullets.some((b) => /\d/.test(b)))
@@ -91,36 +91,50 @@ const STOP = new Set(
     .split(/\s+/),
 )
 
-function tokens(text: string): string[] {
-  return (text.toLowerCase().match(/[a-z][a-z0-9+#.\-]{1,}/g) || []).filter(
-    (w) => !STOP.has(w) && w.length > 2,
-  )
+function normalizeSearchText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9+#]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
 }
 
-// Extract candidate keywords (uni + bi-grams) ranked by frequency.
+function tokens(text: string): string[] {
+  return normalizeSearchText(text)
+    .split(" ")
+    .filter((w) => !STOP.has(w) && w.length > 2)
+}
+
+// Match complete normalized words/phrases. This prevents false positives such
+// as `design` matching `designer` or `product` matching `products`.
+export function keywordInText(text: string, keyword: string): boolean {
+  const haystack = normalizeSearchText(text)
+  const term = normalizeSearchText(keyword)
+  if (!haystack || !term) return false
+  return ` ${haystack} `.includes(` ${term} `)
+}
+
+// Extract candidate job keywords ranked by frequency. Keeping this to
+// normalized unigrams makes the offline score explainable and avoids noisy
+// punctuation/bigram artifacts such as `designer.` and `designer lead`.
 export function extractKeywords(jd: string, limit = 25): string[] {
   const toks = tokens(jd)
   const freq = new Map<string, number>()
-  const bump = (k: string) => freq.set(k, (freq.get(k) || 0) + 1)
-  for (let i = 0; i < toks.length; i++) {
-    bump(toks[i])
-    if (i < toks.length - 1) bump(`${toks[i]} ${toks[i + 1]}`)
-  }
+  for (const token of toks) freq.set(token, (freq.get(token) || 0) + 1)
   return [...freq.entries()]
-    .filter(([k, n]) => n >= (k.includes(" ") ? 2 : 2) || k.includes(" "))
-    .sort((a, b) => b[1] - a[1])
+    .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)
     .map(([k]) => k)
     .slice(0, limit)
 }
 
 // ---- Local heuristic analysis (offline fallback / instant feedback) ----
 export function analyzeLocally(resume: Resume, jd: string): AtsResult {
-  const resumeText = resumeToPlainText(resume).toLowerCase()
+  const resumeText = resumeToPlainText(resume)
   const keywords = extractKeywords(jd)
   const matched: string[] = []
   const missing: string[] = []
   for (const k of keywords) {
-    if (resumeText.includes(k.toLowerCase())) matched.push(k)
+    if (keywordInText(resumeText, k)) matched.push(k)
     else missing.push(k)
   }
 
@@ -219,13 +233,32 @@ export async function analyzeWithAI(
   const data = (await res.json()) as Partial<AtsResult>
   return {
     score: clampScore(data.score),
-    matchedKeywords: data.matchedKeywords ?? [],
-    missingKeywords: data.missingKeywords ?? [],
-    suggestions: data.suggestions ?? [],
-    summary: data.summary ?? "",
+    matchedKeywords: stringList(data.matchedKeywords),
+    missingKeywords: stringList(data.missingKeywords),
+    suggestions: suggestionList(data.suggestions),
+    summary: typeof data.summary === "string" ? data.summary.slice(0, 1000) : "",
     source: "ai",
     sections: buildSectionScores(resume, jd),
   }
+}
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim()).slice(0, 25)
+    : []
+}
+
+function suggestionList(value: unknown): AtsSuggestion[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((item): item is Partial<AtsSuggestion> => Boolean(item) && typeof item === "object")
+    .map((item) => ({
+      section: typeof item.section === "string" ? item.section.slice(0, 80) : "General",
+      severity: item.severity === "high" || item.severity === "medium" || item.severity === "low" ? item.severity : "low",
+      text: typeof item.text === "string" ? item.text.slice(0, 500) : "",
+    }))
+    .filter((item) => item.text)
+    .slice(0, 8)
 }
 
 function clampScore(n: unknown): number {
