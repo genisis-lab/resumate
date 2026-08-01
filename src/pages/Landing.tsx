@@ -1,28 +1,21 @@
 import { navigate } from "../router"
-import { loadStore, setActiveId, saveResume } from "../lib/storage"
-import { createSampleResume } from "../data/sample"
 
 const FEATURES = [
   { icon: "⚡", title: "No sign-up", text: "Start instantly. Your resume saves to your browser — no account, ever." },
-  { icon: "🔒", title: "Private by design", text: "Data lives in your browser's local storage. Export a JSON backup anytime." },
+  { icon: "🔒", title: "Private by design", text: "Editing and offline checks stay in your browser. AI sends only the text you submit." },
   { icon: "🤖", title: "AI ATS scoring", text: "Paste a job description and get a match score plus tailored fixes." },
   { icon: "📄", title: "PDF & Word export", text: "Download crisp, ATS-parseable PDF and editable .docx files." },
-  { icon: "🎨", title: "4 templates", text: "Modern, classic, minimal, and ATS-safe — switch with one click." },
+  { icon: "🎨", title: "6 templates", text: "Modern, classic, minimal, ATS-safe, two-column, and creative — switch with one click." },
   { icon: "✨", title: "Live preview", text: "See every change instantly in a pixel-accurate preview." },
 ]
 
-export function Landing() {
-  function startSample() {
-    const sample = createSampleResume()
-    saveResume(sample)
-    setActiveId(sample.id)
-    navigate("/builder")
-  }
-  function startBlank() {
-    const store = loadStore()
-    setActiveId(store.resumes[0].id)
-    navigate("/builder")
-  }
+export function Landing({
+  onStartBlank,
+  onStartSample,
+}: {
+  onStartBlank: () => void
+  onStartSample: () => void
+}) {
   return (
     <div className="landing">
       <section className="hero">
@@ -30,10 +23,10 @@ export function Landing() {
         <h1>Build an ATS-ready resume<br />in minutes.</h1>
         <p className="hero-sub">ResuMate is a fast, private resume builder with AI-powered ATS scoring, instant optimization tips, and one-click PDF & Word export.</p>
         <div className="hero-cta">
-          <button className="btn-primary large" onClick={startBlank}>Start building →</button>
-          <button className="btn-ghost large" onClick={startSample}>Try with a sample</button>
+          <button className="btn-primary large" onClick={onStartBlank}>Start building →</button>
+          <button className="btn-ghost large" onClick={onStartSample}>Try with a sample</button>
         </div>
-        <p className="hero-note">No email required. Nothing uploaded to a server.</p>
+        <p className="hero-note">No email required. Offline editing stays in your browser; AI tools send only what you submit.</p>
       </section>
 
       <section className="features">
@@ -56,7 +49,7 @@ export function Landing() {
       </section>
 
       <footer className="landing-footer">
-        <p>ResuMate — privacy-first resume builder. Your data stays in your browser.</p>
+        <p>ResuMate — privacy-first resume builder. <button className="footer-link" onClick={() => navigate("/privacy")}>Privacy &amp; data</button></p>
       </footer>
     </div>
   )

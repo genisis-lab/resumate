@@ -17,17 +17,20 @@ function makeHighlighter(terms?: string[]): HL {
   const escaped = list
     .sort((a, b) => b.length - a.length)
     .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-  const re = new RegExp(`(${escaped.join("|")})`, "gi")
+  const re = new RegExp(`(^|[^A-Za-z0-9+#])(${escaped.join("|")})(?=$|[^A-Za-z0-9+#])`, "gi")
   return (text: string) => {
     if (!text) return text
-    const parts = text.split(re)
-    return parts.map((part, i) =>
-      i % 2 === 1 ? (
-        <mark className="hl" key={i}>{part}</mark>
-      ) : (
-        <React.Fragment key={i}>{part}</React.Fragment>
-      ),
-    )
+    const parts: React.ReactNode[] = []
+    let cursor = 0
+    let match: RegExpExecArray | null
+    while ((match = re.exec(text))) {
+      const start = match.index + match[1].length
+      if (start > cursor) parts.push(<React.Fragment key={`text-${cursor}`}>{text.slice(cursor, start)}</React.Fragment>)
+      parts.push(<mark className="hl" key={`mark-${start}`}>{match[2]}</mark>)
+      cursor = start + match[2].length
+    }
+    if (cursor < text.length) parts.push(<React.Fragment key={`text-${cursor}`}>{text.slice(cursor)}</React.Fragment>)
+    return parts
   }
 }
 

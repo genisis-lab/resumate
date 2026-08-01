@@ -22,6 +22,7 @@ export function useResume() {
 
   const timer = useRef<number | undefined>(undefined)
   const [savedAt, setSavedAt] = useState<number>(resume.updatedAt)
+  const [saveError, setSaveError] = useState("")
 
   // Undo/redo stacks. We keep snapshots of whole resume objects.
   const past = useRef<Resume[]>([])
@@ -34,8 +35,9 @@ export function useResume() {
   useEffect(() => {
     if (timer.current) window.clearTimeout(timer.current)
     timer.current = window.setTimeout(() => {
-      saveResume(resume)
-      setSavedAt(Date.now())
+      const ok = saveResume(resume)
+      setSaveError(ok ? "" : "Could not save locally. Export a backup before continuing.")
+      setSavedAt(ok ? Date.now() : 0)
     }, 500)
     return () => {
       if (timer.current) window.clearTimeout(timer.current)
@@ -124,6 +126,7 @@ export function useResume() {
     switchResume,
     replaceResume,
     savedAt,
+    saveError,
     undo,
     redo,
     canUndo: past.current.length > 0,

@@ -1,7 +1,7 @@
 {
   "name": "ResuMate \u2014 Resume Builder",
   "short_name": "ResuMate",
-  "description": "Build an ATS-optimized resume in minutes. No signup, no upload.",
+  "description": "Build an ATS-optimized resume in minutes with offline editing and optional AI tools.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 
 const SHORTCUTS: { keys: string; action: string }[] = [
   { keys: "Ctrl / Cmd + Z", action: "Undo" },
@@ -9,6 +9,12 @@ const SHORTCUTS: { keys: string; action: string }[] = [
 ]
 
 export function ShortcutsModal({ onClose }: { onClose: () => void }) {
+  const closeRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    closeRef.current?.focus()
+  }, [])
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose()
@@ -19,10 +25,10 @@ export function ShortcutsModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
-      <div className="modal" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" onClick={(e) => e.stopPropagation()}>
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h2>Keyboard shortcuts</h2>
-          <button className="icon-btn" aria-label="Close" onClick={onClose}>✕</button>
+          <h2 id="shortcuts-title">Keyboard shortcuts</h2>
+          <button ref={closeRef} className="icon-btn" aria-label="Close" onClick={onClose}>✕</button>
         </div>
         <table className="shortcuts">
           <tbody>
