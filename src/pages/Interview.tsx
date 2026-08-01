@@ -9,7 +9,13 @@ const JD_KEY = "resumate.jd"
 // tips) and an optional recruiter outreach email, based on the resume + a
 // pasted job description. Requires an AI key (site key or BYOK in Settings).
 export function Interview({ resume }: { resume: Resume }) {
-  const [jd, setJd] = useState<string>(() => sessionStorage.getItem(JD_KEY) || "")
+  const [jd, setJd] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem(JD_KEY) || ""
+    } catch {
+      return ""
+    }
+  })
   const [questions, setQuestions] = useState<InterviewQuestion[]>([])
   const [email, setEmail] = useState("")
   const [loadingQ, setLoadingQ] = useState(false)
@@ -18,7 +24,11 @@ export function Interview({ resume }: { resume: Resume }) {
 
   function persistJd(v: string) {
     setJd(v)
-    sessionStorage.setItem(JD_KEY, v)
+    try {
+      sessionStorage.setItem(JD_KEY, v)
+    } catch {
+      /* ignore storage errors */
+    }
   }
 
   async function genQuestions() {
@@ -60,6 +70,7 @@ export function Interview({ resume }: { resume: Resume }) {
         Paste the job description and get likely interview questions tailored to your resume, plus a
         ready-to-send recruiter outreach email.
       </p>
+      <p className="hint-text">AI features send the selected resume and job description through ResuMate's serverless proxy to your configured provider.</p>
 
       <label className="field">
         <span className="field-label">Job description</span>

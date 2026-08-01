@@ -224,7 +224,7 @@ export function Analyze({
             </div>
           )}
           {error && <p className="error">{error}</p>}
-          <p className="hint-text">AI analysis runs through a secure serverless function. If no AI key is configured (or you're offline), ResuMate automatically falls back to an instant on-device keyword + structure analysis — your data never leaves the browser.</p>
+          <p className="hint-text">Offline checks stay in this browser. AI analysis sends the selected resume and job-description text through ResuMate's serverless proxy to the configured provider; if AI is unavailable, the app falls back to the local check.</p>
         </div>
 
         <div className="result-pane">

@@ -91,7 +91,7 @@ export function CoverLetter({ resume }: { resume: Resume }) {
             </button>
           </div>
           {error && <p className="error">{error}</p>}
-          <p className="hint-text">Cover letters use the same secure serverless function as the ATS check. If no AI key is configured on this deployment, this feature is unavailable — the ATS check still works offline.</p>
+          <p className="hint-text">This sends the selected resume and job description through ResuMate's serverless proxy to your configured AI provider. If no key is configured, the ATS check still works offline.</p>
         </div>
 
         <div className="result-pane">

@@ -45,7 +45,21 @@ const html = `<!doctype html>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="ResuMate - Build an ATS-optimized resume in minutes. No signup. Free PDF & Word export. AI-powered ATS scoring." />
+    <meta name="description" content="ResuMate - Build an ATS-optimized resume in minutes. No signup, offline editing, free PDF & Word export, and optional AI-powered ATS scoring." />
+    <link rel="canonical" href="https://resume.builtwai.com/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="ResuMate — Free AI Resume Builder & ATS Checker" />
+    <meta property="og:description" content="Build an ATS-optimized resume in minutes. No signup. Free PDF & Word export, offline editing, and optional AI ATS scoring." />
+    <meta property="og:url" content="https://resume.builtwai.com/" />
+    <meta property="og:image" content="https://resume.builtwai.com/og.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ResuMate — Free AI Resume Builder & ATS Checker" />
+    <meta name="twitter:description" content="Build an ATS-optimized resume with offline editing, free exports, and optional AI ATS scoring." />
+    <meta name="twitter:image" content="https://resume.builtwai.com/og.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"WebApplication","name":"ResuMate","url":"https://resume.builtwai.com/","applicationCategory":"BusinessApplication","operatingSystem":"Web"}
+    </script>
     <title>ResuMate — Free AI Resume Builder & ATS Checker</title>
     <link rel="stylesheet" href="/assets/app.css" />
   </head>
