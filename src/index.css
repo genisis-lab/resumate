@@ -4,7 +4,7 @@
   --surface-2: #f0f2f5;
   --text: #1a1d23;
   --text-soft: #5b626e;
-  --muted: #8a909c;
+  --muted: #667085;
   --border: #e2e5ea;
   --border-strong: #cfd4dc;
   --brand: #2563eb;
@@ -70,6 +70,7 @@ button { font-family: inherit; cursor: pointer; }
 .nav-links button.active { background: var(--brand-soft); color: var(--brand); }
 .nav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .saved-pill { font-size: 12px; color: var(--good); background: var(--good-bg); padding: 3px 9px; border-radius: 999px; }
+.save-warning { max-width: 260px; color: var(--bad); font-size: 12px; line-height: 1.3; }
 
 .main { flex: 1; }
 
@@ -110,6 +111,7 @@ button { font-family: inherit; cursor: pointer; }
 .step-n { width: 30px; height: 30px; flex: none; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center; font-weight: 700; }
 .step p { margin: 4px 0 0; color: var(--text-soft); font-size: 14px; }
 .landing-footer { text-align: center; color: var(--muted); padding: 40px 0 20px; font-size: 13px; }
+.footer-link { border: 0; padding: 0; background: none; color: var(--brand); font: inherit; text-decoration: underline; }
 
 /* ---- Builder ---- */
 .toolbar {
@@ -332,6 +334,7 @@ mark.hl { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 2p
 
 /* Mobile editor/preview tabs (hidden on desktop) */
 .mobile-tabs { display: none; gap: 8px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.mobile-actions { display: none; }
 
 @media print {
   @page { margin: 0.5in; }
@@ -449,6 +452,7 @@ mark.hl { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 2p
   .nav-links button { padding: 8px 11px; white-space: nowrap; }
   .nav-right { gap: 6px; }
   .saved-pill { font-size: 11px; padding: 3px 7px; }
+  .save-warning { max-width: 150px; font-size: 11px; }
 
   /* ---- Builder toolbar: one swipeable row instead of a tall wrap ---- */
   .toolbar { position: static; top: auto; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 12px; padding: 8px 12px; scrollbar-width: none; }
@@ -463,6 +467,8 @@ mark.hl { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 2p
   .mobile-tabs .chip { flex: 1; text-align: center; padding: 11px 0; border: 1px solid var(--border-strong); border-radius: 0; font-size: 14px; font-weight: 600; }
   .mobile-tabs .chip:first-child { border-radius: 8px 0 0 8px; }
   .mobile-tabs .chip:last-child { border-radius: 0 8px 8px 0; border-left: none; }
+  .mobile-actions { display: flex; gap: 8px; padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .mobile-actions button { flex: 1; }
 
   /* ---- Builder panes ---- */
   .builder-grid { grid-template-columns: 1fr; height: auto; }
@@ -623,6 +629,7 @@ mark.hl { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 2p
   margin-bottom: 10px;
 }
 .modal-head h2 { margin: 0; font-size: 17px; }
+.share-warning { color: var(--ok); }
 
 .share-qr { display: flex; justify-content: center; padding: 14px 0; }
 .share-qr img { border-radius: 10px; background: #fff; padding: 8px; }

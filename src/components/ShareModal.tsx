@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Resume } from "../types/resume"
 import { buildShareUrl } from "../lib/share"
 
@@ -7,6 +7,11 @@ export function ShareModal({ resume, onClose }: { resume: Resume; onClose: () =>
   const [qr, setQr] = useState("")
   const [qrError, setQrError] = useState("")
   const [copied, setCopied] = useState(false)
+  const closeRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    closeRef.current?.focus()
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -48,14 +53,16 @@ export function ShareModal({ resume, onClose }: { resume: Resume; onClose: () =>
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
-      <div className="modal" role="dialog" aria-modal="true" aria-label="Share resume" onClick={(e) => e.stopPropagation()}>
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="share-title" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h2>Share resume</h2>
-          <button className="icon-btn" aria-label="Close" onClick={onClose}>✕</button>
+          <h2 id="share-title">Share resume</h2>
+          <button ref={closeRef} className="icon-btn" aria-label="Close" onClick={onClose}>✕</button>
         </div>
         <p className="hint">
-          Anyone with this read-only link can open a copy in their browser. Nothing is uploaded — the whole resume is encoded inside the link.
+          Anyone with this read-only link can open a copy in their browser. Nothing is uploaded — the whole resume is encoded in the URL fragment.
         </p>
+        <p className="hint share-warning"><strong>Public-link warning:</strong> this is encoded, not encrypted. Anyone who has the link can read the resume.</p>
+        {url.length > 6000 && <p className="hint share-warning">This link is long and may not fit in every QR scanner. Copy the link instead.</p>}
         <div className="share-qr">
           {qr ? (
             <img src={qr} width={220} height={220} alt="QR code linking to this resume" />

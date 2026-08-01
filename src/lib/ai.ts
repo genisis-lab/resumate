@@ -1,7 +1,7 @@
 // Client helpers for the AI features. Every call posts to a same-origin
 // serverless function (/api/generate or /api/analyze) so a server-held key is
-// never exposed. If the visitor has supplied their own key (BYOK), it is merged
-// into the request body and used by the proxy instead.
+// never exposed. If the visitor has supplied their own key (BYOK), it is sent
+// to that same-origin proxy and used only for an allowlisted provider.
 
 import { Resume } from "../types/resume"
 import { resumeToPlainText } from "./resumeText"

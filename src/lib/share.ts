@@ -1,7 +1,7 @@
 // Shareable read-only links. The full resume is encoded into a URL-safe base64
-// string in the query (?r=...). No server, no database — the recipient's
-// browser decodes it locally. Good for sharing a draft or importing across
-// devices without an account.
+// string in the URL fragment, so it is not sent in ordinary HTTP requests or
+// referrer headers. No server or database is involved. The payload is encoded,
+// not encrypted, so anyone with the link can read it.
 
 import { Resume } from "../types/resume"
 
@@ -31,14 +31,18 @@ export function decodeResume(s: string): Resume | null {
 
 export function buildShareUrl(r: Resume): string {
   const base = window.location.origin + window.location.pathname
-  return `${base}?r=${encodeResume(r)}`
+  return `${base}#/share?r=${encodeResume(r)}`
 }
 
 // Read a shared resume payload from the current URL, if present.
 export function readSharedResume(): Resume | null {
   try {
-    const params = new URLSearchParams(window.location.search)
-    const s = params.get("r")
+    const hash = window.location.hash
+    const hashQuery = hash.includes("?") ? hash.slice(hash.indexOf("?") + 1) : ""
+    const hashPayload = new URLSearchParams(hashQuery).get("r")
+    // Keep accepting legacy query links so previously shared resumes still
+    // import, while all newly generated links use the fragment format.
+    const s = hashPayload || new URLSearchParams(window.location.search).get("r")
     if (!s) return null
     return decodeResume(s)
   } catch {
@@ -46,13 +50,10 @@ export function readSharedResume(): Resume | null {
   }
 }
 
-// Remove the ?r= payload from the address bar after we've consumed it, keeping
-// the hash route intact.
+// Remove a share payload from the address bar after it has been consumed.
 export function clearShareParam(): void {
   try {
-    const u = new URL(window.location.href)
-    u.searchParams.delete("r")
-    window.history.replaceState({}, "", u.toString())
+    window.history.replaceState({}, "", `${window.location.origin}${window.location.pathname}`)
   } catch {
     /* ignore */
   }

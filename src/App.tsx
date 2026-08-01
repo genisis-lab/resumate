@@ -8,7 +8,9 @@ import { Templates } from "./pages/Templates"
 import { CoverLetter } from "./pages/CoverLetter"
 import { Settings } from "./pages/Settings"
 import { Interview } from "./pages/Interview"
-import { getTheme, setTheme } from "./lib/storage"
+import { Privacy } from "./pages/Privacy"
+import { getTheme, setTheme, loadStore } from "./lib/storage"
+import { createSampleResume } from "./data/sample"
 import { readSharedResume, clearShareParam } from "./lib/share"
 import { useInstallPrompt } from "./lib/pwa"
 import { exportPdf } from "./lib/exportPdf"
@@ -41,24 +43,26 @@ function InstallButton() {
 
 export default function App() {
   const route = useRoute()
-  const { resume, setResume, switchResume, replaceResume, savedAt, undo, redo, canUndo, canRedo } = useResume()
+  const { resume, setResume, switchResume, replaceResume, savedAt, saveError, undo, redo, canUndo, canRedo } = useResume()
   const sharedChecked = useRef(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
 
-  const isApp = route !== "/"
+  const isApp = route !== "/" && route !== "/privacy"
 
-  // If the page was opened from a shared link (?r=...), offer to load it once.
+  // If the page was opened from a shared link, offer to load it once.
   useEffect(() => {
     if (sharedChecked.current) return
     sharedChecked.current = true
     const shared = readSharedResume()
     if (shared) {
       const ok = confirm("This link contains a shared resume. Load it as a new resume in your browser?")
+      clearShareParam()
       if (ok) {
         replaceResume(shared)
         navigate("/builder")
+      } else {
+        navigate("/")
       }
-      clearShareParam()
     }
   }, [replaceResume])
 
@@ -124,7 +128,11 @@ export default function App() {
           </div>
         )}
         <div className="nav-right">
-          {isApp && savedAt > 0 && <span className="saved-pill" role="status" aria-live="polite">Saved</span>}
+          {isApp && saveError ? (
+            <span className="save-warning" role="status" aria-live="polite">{saveError}</span>
+          ) : isApp && savedAt > 0 ? (
+            <span className="saved-pill" role="status" aria-live="polite">Saved</span>
+          ) : null}
           <InstallButton />
           <button className="icon-btn" onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (press ?)" aria-label="Keyboard shortcuts">⌨</button>
           <ThemeToggle />
@@ -132,7 +140,19 @@ export default function App() {
       </nav>
 
       <main className="main" id="main">
-        {route === "/" && <Landing />}
+        {route === "/" && (
+          <Landing
+            onStartBlank={() => {
+              const store = loadStore()
+              switchResume(store.resumes[0].id)
+              navigate("/builder")
+            }}
+            onStartSample={() => {
+              replaceResume(createSampleResume())
+              navigate("/builder")
+            }}
+          />
+        )}
         {route === "/builder" && (
           <Builder
             resume={resume}
@@ -150,6 +170,7 @@ export default function App() {
         {route === "/cover" && <CoverLetter resume={resume} />}
         {route === "/interview" && <Interview resume={resume} />}
         {route === "/settings" && <Settings />}
+        {route === "/privacy" && <Privacy />}
       </main>
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
     </div>

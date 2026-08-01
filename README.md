@@ -1,13 +1,13 @@
 # ResuMate — Free AI Resume Builder & ATS Checker
 
-A fast, **no-signup**, privacy-first resume builder built with **React + Vite**. Edit with a live split-screen preview, get an **AI-powered ATS score** against any job description, and export to **PDF** and **Word (.docx)**. Everything is stored in your browser's `localStorage` — no account, nothing uploaded to a server. Installable as an offline app (PWA).
+A fast, **no-signup**, privacy-first resume builder built with **React + Vite**. Edit with a live split-screen preview, get an **AI-powered ATS score** against any job description, and export to **PDF** and **Word (.docx)**. Editing is stored in your browser's `localStorage`; AI features send only the text you submit to the configured provider. Installable as an offline app (PWA).
 
-> **Live:** https://resumate.neil27.workers.dev
+> **Live:** https://resume.builtwai.com/
 
 ## Highlights
 
 - ⚡ **No sign-up** — open and start typing
-- 🔒 **Privacy-first** — data lives in `localStorage`; nothing is uploaded except the text you explicitly send to the AI ATS check
+- 🔒 **Privacy-first** — editing and offline checks stay in `localStorage`; AI sends only the text you explicitly submit through the proxy
 - 📱 **Installable PWA** — add to your home screen and keep working **offline**
 - 📝 **Live split-screen editor** — structured form + real-time preview
 - 🤖 **AI ATS scoring** — paste a job description for a match score, missing keywords, and section-by-section suggestions
@@ -122,7 +122,7 @@ public/                    favicon, manifest.webmanifest, sw.js, og.svg, _header
 src/
   components/              editor form, reusable fields, custom sections, modals (share, shortcuts)
   templates/               ResumePreview (all 6 templates)
-  pages/                   Landing, Builder, Templates, Analyze, CoverLetter, Interview, Settings
+  pages/                   Landing, Builder, Templates, Analyze, CoverLetter, Interview, Settings, Privacy
   lib/                     storage, ats, exportPdf, exportDocx, exportText, zip, quality,
                            resumeText, share, jsonResume, proofread, writingCoach, actionVerbs,
                            fitPage, pwa, importResume, ai, byok, pdf
@@ -133,8 +133,8 @@ scripts/build-offline.mjs  esbuild build (no Vite/network)
 
 ## Privacy
 
-Resume content is stored only in your browser. It is sent to the serverless function **only** when you click “Analyze with AI”, solely to generate your ATS score — it is not stored or logged by the app. Share links encode the resume directly in the URL, so shared data never touches a server either.
+Resume editing and offline ATS checks run in your browser. When you choose an AI feature, the selected resume and/or job-description text is sent through the serverless proxy to the configured AI provider; review that provider's retention policy before submitting sensitive information. Share links encode the resume in the URL fragment, so the payload is not included in ordinary HTTP requests, but it is not encrypted and should be treated as public.
 
 ## License
 
-[MIT](./LICENSE)
+[MIT License](https://opensource.org/license/mit)
