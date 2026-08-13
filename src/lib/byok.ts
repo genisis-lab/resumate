@@ -1,8 +1,6 @@
-// Bring-Your-Own-Key: store an optional user-provided AI API config in
-// localStorage so the app can use supported providers without the site owner
-// paying for BYOK usage. The key stays in this browser's storage, then is sent
-// to ResuMate's same-origin proxy with the AI request and forwarded to the
-// selected provider. It is never exposed to the site environment.
+// Bring-Your-Own-Key: provider preferences may persist locally, but the secret
+// itself lives only in sessionStorage so closing the tab clears it. Requests go
+// through ResuMate's same-origin proxy and only to exact supported endpoints.
 
 export interface AiConfig {
   key: string
@@ -19,6 +17,7 @@ export interface AiPreset {
 }
 
 const AI_KEY = "resumate.ai.v1"
+const AI_SECRET_KEY = "resumate.ai.secret.v1"
 
 export const AI_PRESETS: AiPreset[] = [
   {
@@ -62,12 +61,26 @@ export function getAiConfig(): AiConfig | null {
   try {
     const raw = localStorage.getItem(AI_KEY)
     if (!raw) return null
-    const c = JSON.parse(raw) as Partial<AiConfig>
-    if (!c || !c.key) return null
+    const stored = JSON.parse(raw) as Partial<AiConfig>
+    if (!stored || typeof stored !== "object") return null
+
+    // One-time migration removes keys saved by older releases from persistent
+    // storage while preserving the current tab's session.
+    let key = sessionStorage.getItem(AI_SECRET_KEY) || ""
+    if (!key && typeof stored.key === "string" && stored.key.trim()) {
+      key = stored.key.trim()
+      sessionStorage.setItem(AI_SECRET_KEY, key)
+      localStorage.setItem(AI_KEY, JSON.stringify({ url: stored.url, model: stored.model }))
+    }
+    const preset = AI_PRESETS.find((candidate) => candidate.url === stored.url) || AI_PRESETS[0]
+    const model = typeof stored.model === "string" && /^[A-Za-z0-9._:/+-]{1,160}$/.test(stored.model)
+      ? stored.model
+      : preset.model
+    if (!key) return null
     return {
-      key: c.key,
-      url: c.url || AI_PRESETS[0].url,
-      model: c.model || AI_PRESETS[0].model,
+      key,
+      url: preset.url,
+      model,
     }
   } catch {
     return null
@@ -76,7 +89,9 @@ export function getAiConfig(): AiConfig | null {
 
 export function setAiConfig(cfg: AiConfig): void {
   try {
-    localStorage.setItem(AI_KEY, JSON.stringify(cfg))
+    const preset = AI_PRESETS.find((candidate) => candidate.url === cfg.url) || AI_PRESETS[0]
+    sessionStorage.setItem(AI_SECRET_KEY, cfg.key.trim())
+    localStorage.setItem(AI_KEY, JSON.stringify({ url: preset.url, model: cfg.model }))
   } catch {
     /* ignore storage errors */
   }
@@ -85,6 +100,7 @@ export function setAiConfig(cfg: AiConfig): void {
 export function clearAiConfig(): void {
   try {
     localStorage.removeItem(AI_KEY)
+    sessionStorage.removeItem(AI_SECRET_KEY)
   } catch {
     /* ignore storage errors */
   }

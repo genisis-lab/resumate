@@ -101,7 +101,7 @@ npm run build:offline  # esbuild-only build (no network needed) -> dist/
    - `AI_API_KEY` — your OpenAI (or compatible) key, marked **Encrypted**
    - `AI_API_URL` *(optional)* — defaults to `https://api.openai.com/v1/chat/completions`
    - `AI_MODEL` *(optional)* — defaults to `gpt-4o-mini`
-   - `NODE_VERSION` *(recommended)* — `20`
+   - `NODE_VERSION` *(recommended)* — `24`
 5. Deploy. The `functions/` directory is automatically wired up as Pages Functions.
 
 ### Option B — Direct upload via Wrangler

@@ -38,6 +38,8 @@ await build({
   logLevel: "info",
 })
 
+const schemaJson = `{"@context":"https://schema.org","@type":"WebApplication","name":"ResuMate","url":"https://resume.builtwai.com/","applicationCategory":"BusinessApplication","operatingSystem":"Web","description":"Free, no-signup resume builder with offline editing, ATS checks, PDF and Word export."}`
+
 // index.html for the built site (references the bundled asset).
 const html = `<!doctype html>
 <html lang="en">
@@ -57,9 +59,7 @@ const html = `<!doctype html>
     <meta name="twitter:description" content="Build an ATS-optimized resume with offline editing, free exports, and optional AI ATS scoring." />
     <meta name="twitter:image" content="https://resume.builtwai.com/og.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <script type="application/ld+json">
-      {"@context":"https://schema.org","@type":"WebApplication","name":"ResuMate","url":"https://resume.builtwai.com/","applicationCategory":"BusinessApplication","operatingSystem":"Web"}
-    </script>
+    <script type="application/ld+json">${schemaJson}</script>
     <title>ResuMate — Free AI Resume Builder & ATS Checker</title>
     <link rel="stylesheet" href="/assets/app.css" />
   </head>
@@ -71,10 +71,18 @@ const html = `<!doctype html>
 `
 writeFileSync(join(dist, "index.html"), html)
 
-// Copy public/ assets into dist/.
-const pub = join(root, "public")
-if (existsSync(pub)) {
-  for (const f of readdirSync(pub)) copyFileSync(join(pub, f), join(dist, f))
+function copyTree(source, destination) {
+  mkdirSync(destination, { recursive: true })
+  for (const entry of readdirSync(source, { withFileTypes: true })) {
+    const from = join(source, entry.name)
+    const to = join(destination, entry.name)
+    if (entry.isDirectory()) copyTree(from, to)
+    else if (entry.isFile()) copyFileSync(from, to)
+  }
 }
+
+// Copy public/ assets into dist/ (including .well-known and local workers).
+const pub = join(root, "public")
+if (existsSync(pub)) copyTree(pub, dist)
 
 console.log("\n✓ Offline build complete -> dist/")
