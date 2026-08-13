@@ -2,8 +2,8 @@ import { useState } from "react"
 import { AI_PRESETS, getAiConfig, setAiConfig, clearAiConfig } from "../lib/byok"
 
 // Settings page: Bring-Your-Own-Key. Lets a visitor paste a key for one of
-// the supported providers. The key is stored only in this browser's
-// localStorage and sent to the same-origin proxy with each AI request.
+// the supported providers. The key stays in this tab's session storage and is
+// sent to the same-origin proxy with each AI request.
 export function Settings() {
   const existing = getAiConfig()
   const existingPreset = AI_PRESETS.find((p) => p.url === existing?.url)
@@ -47,8 +47,8 @@ export function Settings() {
       <h1>Settings</h1>
       <p className="page-sub">
         Bring your own AI key to power smart features (ATS scoring, rewriting, tailoring, cover
-        letters, interview prep). Your key is stored <strong>only in this browser</strong>, then
-        sent through ResuMate's proxy with each AI request to the provider you choose. No account needed.
+        letters, interview prep). Your key is stored <strong>only for this browser tab</strong>, then
+        sent through ResuMate's proxy with each AI request to the provider you choose. Closing the tab clears it.
       </p>
 
       <div className="card">
@@ -106,8 +106,8 @@ export function Settings() {
           <li><strong>DeepSeek</strong> — low cost at platform.deepseek.com.</li>
         </ul>
         <p className="hint">
-          The key stays in this browser's local storage, but AI requests pass the key and selected
-          resume/job text through ResuMate's proxy to the provider. Without a key, ATS scoring still
+          The key stays in this tab's session storage, but AI requests pass the key and selected
+          resume/job text through ResuMate's proxy to the chosen provider. Without a key, ATS scoring still
           works using the built-in offline analyzer.
         </p>
       </div>
