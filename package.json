@@ -4,13 +4,18 @@
   "version": "1.0.0",
   "type": "module",
   "description": "ResuMate - a fast, no-signup, privacy-first AI resume builder with ATS scoring and PDF/Word export.",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "prepare:assets": "node scripts/copy-pdf-worker.mjs",
+    "typecheck:api": "tsc -p tsconfig.functions.json",
+    "build": "npm run prepare:assets && tsc -b && npm run typecheck:api && vite build",
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",
-    "build:offline": "node scripts/build-offline.mjs",
+    "build:offline": "npm run prepare:assets && node scripts/build-offline.mjs",
     "pages:deploy": "wrangler pages deploy dist --project-name resumate"
   },
   "dependencies": {
@@ -20,14 +25,16 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "5.20260813.1",
+    "@types/node": "26.2.0",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.4",
-    "esbuild": "^0.24.0",
-    "typescript": "^5.6.3",
-    "vite": "^6.0.0",
-    "vitest": "^2.1.8",
-    "wrangler": "^3.0.0"
+    "@vitejs/plugin-react": "6.0.5",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3",
+    "vite": "8.2.1",
+    "vitest": "4.1.10",
+    "wrangler": "4.122.0"
   }
 }
