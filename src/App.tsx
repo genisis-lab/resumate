@@ -59,7 +59,7 @@ export default function App() {
   const [showMobileNav, setShowMobileNav] = useState(false)
 
   const isApp = route !== "/" && route !== "/privacy"
-  const activeNavLabel = APP_NAV.find((item) => item.path === route)?.label || "Navigate"
+  const activeNavLabel = APP_NAV.find((item) => item.path === route)?.label || "current page"
 
   // If the page was opened from a shared link, offer to load it once.
   useEffect(() => {
@@ -137,8 +137,14 @@ export default function App() {
           </div>
         )}
         {isApp && (
-          <button className="mobile-nav-trigger" type="button" aria-haspopup="dialog" onClick={() => setShowMobileNav(true)}>
-            <span>{activeNavLabel}</span><span aria-hidden="true">⌄</span>
+          <button
+            className="mobile-nav-trigger"
+            type="button"
+            aria-haspopup="dialog"
+            aria-label={`Open menu, currently on ${activeNavLabel}`}
+            onClick={() => setShowMobileNav(true)}
+          >
+            Menu
           </button>
         )}
         <div className="nav-right">
