@@ -471,7 +471,6 @@ mark.hl { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 2p
     line-height: 20px;
     font-weight: 600;
   }
-  .mobile-nav-trigger span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nav-right { gap: 4px; padding: 0; }
   .nav-right .install-button, .nav-right .icon-btn { display: none; }
   .saved-pill { font-size: 11px; padding: 3px 7px; }
@@ -483,7 +482,7 @@ mark.hl { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 2p
   .mobile-workspace-bar { display: flex; align-items: flex-end; gap: 8px; padding: 12px; background: var(--surface); border-bottom: 1px solid var(--border); }
   .mobile-resume-select { min-width: 0; flex: 1; display: grid; gap: 4px; color: var(--muted); font-size: 12px; line-height: 16px; font-weight: 600; }
   .mobile-resume-select .select { width: 100%; max-width: none; }
-  .mobile-tools-button { min-width: 80px; }
+  .mobile-tools-button { min-width: 112px; border: 1px solid var(--brand); }
 
   /* ---- Edit / Preview as a sticky segmented control ---- */
   .mobile-tabs { position: sticky; top: 56px; z-index: 30; display: flex; gap: 0; padding: 8px 12px; }

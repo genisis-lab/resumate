@@ -344,7 +344,7 @@ export function Builder({
             ))}
           </select>
         </label>
-        <button className="btn-ghost mobile-tools-button" type="button" aria-haspopup="dialog" onClick={() => setMobileSheet("tools")}>Tools</button>
+        <button className="btn-secondary mobile-tools-button" type="button" aria-haspopup="dialog" onClick={() => setMobileSheet("tools")}>Resume tools</button>
       </div>
 
       <div className="mobile-tabs no-print" role="tablist" aria-label="Editor or preview">
