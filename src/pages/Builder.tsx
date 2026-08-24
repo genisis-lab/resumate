@@ -15,6 +15,7 @@ import { findProofIssues, autoFixSpelling } from "../lib/proofread"
 import { fromJsonResume } from "../lib/jsonResume"
 import { Density } from "../types/resume"
 import { navigate } from "../router"
+import { BottomSheet } from "../components/BottomSheet"
 
 const TEMPLATES: { id: TemplateId; label: string }[] = [
   { id: "modern", label: "Modern" },
@@ -69,6 +70,7 @@ export function Builder({
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit")
   const [showProof, setShowProof] = useState(false)
   const [showShare, setShowShare] = useState(false)
+  const [mobileSheet, setMobileSheet] = useState<"tools" | "export" | null>(null)
   const [pageCount, setPageCount] = useState(1)
   const [fitting, setFitting] = useState(false)
   const previewRef = useRef<HTMLDivElement>(null)
@@ -144,6 +146,42 @@ export function Builder({
     if (copy) switchResume(copy.id)
   }
 
+  function onNewResume() {
+    replaceResume(createEmptyResume("Untitled"))
+    setMobileSheet(null)
+  }
+
+  function onLoadExample() {
+    if (isResumeEmpty(resume) || confirm("Load the example resume? This replaces the current resume's contents.")) {
+      replaceResume({ ...createSampleResume(), id: resume.id, name: resume.name })
+      setMobileSheet(null)
+    }
+  }
+
+  function onDeleteResume() {
+    if (!confirm("Delete this resume? This cannot be undone.")) return
+    deleteResume(resume.id)
+    const nextStore = loadStore()
+    switchResume(nextStore.resumes[0].id)
+    setMobileSheet(null)
+  }
+
+  function onClearData() {
+    if (!confirm("Erase ALL ResuMate data from this browser (every resume)? Export a backup first if you want to keep it. This cannot be undone.")) return
+    clearAllData()
+    location.reload()
+  }
+
+  function openFilePicker(ref: React.RefObject<HTMLInputElement>) {
+    setMobileSheet(null)
+    ref.current?.click()
+  }
+
+  function runMobileExport(action: () => void) {
+    setMobileSheet(null)
+    window.setTimeout(action, 0)
+  }
+
   // Measure how many printed pages the preview spans.
   useEffect(() => {
     const el = previewRef.current
@@ -191,29 +229,19 @@ export function Builder({
               </option>
             ))}
           </select>
-          <button className="btn-ghost small" onClick={() => replaceResume(createEmptyResume("Untitled"))}>+ New</button>
+          <button className="btn-ghost small" onClick={onNewResume}>+ New</button>
           <button className="btn-ghost small" onClick={onDuplicate} title="Make an editable copy of this resume">Duplicate</button>
           <button
             className="btn-ghost small"
             title="Fill the editor with a complete example you can edit"
-            onClick={() => {
-              if (isResumeEmpty(resume) || confirm("Load the example resume? This replaces the current resume's contents.")) {
-                replaceResume({ ...createSampleResume(), id: resume.id, name: resume.name })
-              }
-            }}
+            onClick={onLoadExample}
           >
             Load example
           </button>
           {store.resumes.length > 1 && (
             <button
               className="btn-ghost small danger"
-              onClick={() => {
-                if (confirm("Delete this resume? This cannot be undone.")) {
-                  deleteResume(resume.id)
-                  const s = loadStore()
-                  switchResume(s.resumes[0].id)
-                }
-              }}
+              onClick={onDeleteResume}
             >
               Delete
             </button>
@@ -221,12 +249,7 @@ export function Builder({
           <button
             className="btn-ghost small danger"
             title="Erase all locally stored data from this browser"
-            onClick={() => {
-              if (confirm("Erase ALL ResuMate data from this browser (every resume)? Export a backup first if you want to keep it. This cannot be undone.")) {
-                clearAllData()
-                location.reload()
-              }
-            }}
+            onClick={onClearData}
           >
             Clear data
           </button>
@@ -312,13 +335,25 @@ export function Builder({
         </div>
       </div>
 
+      <div className="mobile-workspace-bar no-print">
+        <label className="mobile-resume-select">
+          <span>Resume</span>
+          <select className="select" value={resume.id} onChange={(event) => switchResume(event.target.value)}>
+            {store.resumes.map((item) => (
+              <option key={item.id} value={item.id}>{item.contact.fullName || item.name}</option>
+            ))}
+          </select>
+        </label>
+        <button className="btn-ghost mobile-tools-button" type="button" aria-haspopup="dialog" onClick={() => setMobileSheet("tools")}>Tools</button>
+      </div>
+
       <div className="mobile-tabs no-print" role="tablist" aria-label="Editor or preview">
         <button type="button" role="tab" aria-selected={mobileView === "edit"} aria-controls="builder-editor" className={`chip ${mobileView === "edit" ? "active" : ""}`} onClick={() => setMobileView("edit")}>Editor</button>
         <button type="button" role="tab" aria-selected={mobileView === "preview"} aria-controls="builder-preview" className={`chip ${mobileView === "preview" ? "active" : ""}`} onClick={() => setMobileView("preview")}>Preview</button>
       </div>
-      <div className="mobile-actions no-print" aria-label="Mobile quick actions">
+      <div className="mobile-action-dock no-print" aria-label="Mobile quick actions">
         <button className="btn-secondary small" onClick={() => navigate("/analyze")}>✨ ATS Check</button>
-        <button className="btn-primary small" onClick={() => exportPdf()}>⬇ Export PDF</button>
+        <button className="btn-primary small" type="button" aria-haspopup="dialog" onClick={() => setMobileSheet("export")}>Export</button>
       </div>
       <div className={`builder-grid show-${mobileView}`}>
         <div id="builder-editor" className="editor-pane no-print" role="tabpanel" aria-label="Resume editor">
@@ -373,6 +408,91 @@ export function Builder({
         </div>
       </div>
       {showShare && <ShareModal resume={resume} onClose={() => setShowShare(false)} />}
+      <BottomSheet open={mobileSheet === "export"} title="Export resume" onClose={() => setMobileSheet(null)}>
+        <p className="sheet-intro">Choose the file you need. Your resume stays in this browser.</p>
+        <div className="export-primary-grid">
+          <button className="export-choice primary" type="button" onClick={() => runMobileExport(exportPdf)}>
+            <strong>PDF</strong><span>Print-ready and ATS-friendly</span>
+          </button>
+          <button className="export-choice" type="button" onClick={() => runMobileExport(() => exportDocx(resume))}>
+            <strong>Word</strong><span>Editable .docx file</span>
+          </button>
+        </div>
+        <section className="sheet-section" aria-labelledby="other-formats-title">
+          <h3 id="other-formats-title">Other formats</h3>
+          <div className="sheet-action-grid">
+            <button className="btn-ghost" type="button" onClick={() => runMobileExport(() => exportMarkdown(resume))}>Markdown</button>
+            <button className="btn-ghost" type="button" onClick={() => runMobileExport(() => exportPlainText(resume))}>Plain text</button>
+            <button className="btn-ghost" type="button" onClick={() => runMobileExport(() => exportResumeJSON(resume))}>ResuMate JSON</button>
+            <button className="btn-ghost" type="button" onClick={() => runMobileExport(() => exportJsonResume(resume))}>JSON Resume</button>
+          </div>
+        </section>
+        <button className="btn-ghost sheet-full-button" type="button" onClick={() => runMobileExport(exportAllJSON)}>Back up all resumes</button>
+      </BottomSheet>
+
+      <BottomSheet open={mobileSheet === "tools"} title="Resume tools" onClose={() => setMobileSheet(null)}>
+        <section className="sheet-section" aria-labelledby="resume-tools-title">
+          <h3 id="resume-tools-title">Resume</h3>
+          <div className="sheet-action-grid">
+            <button className="btn-ghost" type="button" onClick={onNewResume}>New resume</button>
+            <button className="btn-ghost" type="button" onClick={() => { onDuplicate(); setMobileSheet(null) }}>Duplicate</button>
+            <button className="btn-ghost" type="button" onClick={onLoadExample}>Load example</button>
+            {store.resumes.length > 1 && <button className="btn-ghost danger" type="button" onClick={onDeleteResume}>Delete resume</button>}
+          </div>
+        </section>
+
+        <section className="sheet-section" aria-labelledby="design-tools-title">
+          <h3 id="design-tools-title">Design</h3>
+          <div className="mobile-template-grid">
+            {TEMPLATES.map((template) => (
+              <button key={template.id} type="button" className={`chip ${resume.settings.template === template.id ? "active" : ""}`} onClick={() => setSettings({ template: template.id })}>{template.label}</button>
+            ))}
+          </div>
+          <div className="mobile-setting-row">
+            <span className="toolbar-label">Accent</span>
+            <div className="mobile-swatches">
+              {ACCENTS.map((accent) => (
+                <button key={accent} type="button" className={`swatch ${resume.settings.accent === accent ? "active" : ""}`} style={swatchStyle(accent)} onClick={() => setSettings({ accent })} aria-label={`Accent color ${ACCENT_NAMES[accent] || accent}`} />
+              ))}
+            </div>
+          </div>
+          <label className="mobile-setting-row setting-with-control">
+            <span className="toolbar-label">Text size</span>
+            <input type="range" min={0.8} max={1.15} step={0.05} value={resume.settings.fontScale} onChange={(event) => setSettings({ fontScale: Number(event.target.value) })} />
+          </label>
+          <label className="mobile-setting-row setting-with-control">
+            <span className="toolbar-label">Spacing</span>
+            <select className="select" value={resume.settings.density || "cozy"} onChange={(event) => setSettings({ density: event.target.value as Density })}>
+              {DENSITIES.map((density) => <option key={density.id} value={density.id}>{density.label}</option>)}
+            </select>
+          </label>
+        </section>
+
+        <section className="sheet-section" aria-labelledby="editing-tools-title">
+          <div className="sheet-section-heading">
+            <h3 id="editing-tools-title">Editing</h3>
+            <span className={`page-badge ${pageCount > 1 ? "over" : ""}`}>{pageCount} page{pageCount === 1 ? "" : "s"}</span>
+          </div>
+          <div className="sheet-action-grid">
+            <button className="btn-ghost" type="button" onClick={undo} disabled={!canUndo}>↶ Undo</button>
+            <button className="btn-ghost" type="button" onClick={redo} disabled={!canRedo}>↷ Redo</button>
+            <button className="btn-ghost" type="button" onClick={fitToOnePage} disabled={fitting}>{fitting ? "Fitting…" : "Fit to 1 page"}</button>
+            <button className={`btn-ghost ${showProof ? "active" : ""}`} type="button" onClick={() => { setShowProof((current) => !current); setMobileSheet(null) }}>Proofread</button>
+          </div>
+        </section>
+
+        <section className="sheet-section" aria-labelledby="import-tools-title">
+          <h3 id="import-tools-title">Import and share</h3>
+          <div className="sheet-action-grid">
+            <button className="btn-ghost" type="button" disabled={importing} onClick={() => openFilePicker(resumeFileRef)}>{importing ? "Reading…" : "Import resume"}</button>
+            <button className="btn-ghost" type="button" onClick={() => openFilePicker(fileRef)}>Import JSON</button>
+            <button className="btn-ghost" type="button" onClick={() => { setMobileSheet(null); setShowShare(true) }}>Share resume</button>
+            <button className="btn-ghost" type="button" onClick={() => runMobileExport(exportAllJSON)}>Back up all</button>
+            <button className="btn-ghost" type="button" onClick={() => openFilePicker(backupFileRef)}>Restore backup</button>
+            <button className="btn-ghost danger" type="button" onClick={onClearData}>Clear browser data</button>
+          </div>
+        </section>
+      </BottomSheet>
     </div>
   )
 }

@@ -15,6 +15,16 @@ import { readSharedResume, clearShareParam } from "./lib/share"
 import { useInstallPrompt } from "./lib/pwa"
 import { exportPdf } from "./lib/exportPdf"
 import { ShortcutsModal } from "./components/ShortcutsModal"
+import { BottomSheet } from "./components/BottomSheet"
+
+const APP_NAV = [
+  { path: "/builder", label: "Editor" },
+  { path: "/templates", label: "Templates" },
+  { path: "/analyze", label: "ATS Check" },
+  { path: "/cover", label: "Cover Letter" },
+  { path: "/interview", label: "Interview" },
+  { path: "/settings", label: "Settings" },
+]
 
 function ThemeToggle() {
   const [theme, setT] = useState<"light" | "dark">(getTheme())
@@ -37,7 +47,7 @@ function InstallButton() {
   const { canInstall, promptInstall } = useInstallPrompt()
   if (!canInstall) return null
   return (
-    <button className="btn-ghost small" onClick={promptInstall} title="Install ResuMate as an app">⬇ Install</button>
+    <button className="btn-ghost small install-button" onClick={promptInstall} title="Install ResuMate as an app">⬇ Install</button>
   )
 }
 
@@ -46,8 +56,10 @@ export default function App() {
   const { resume, setResume, switchResume, replaceResume, savedAt, saveError, undo, redo, canUndo, canRedo } = useResume()
   const sharedChecked = useRef(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [showMobileNav, setShowMobileNav] = useState(false)
 
   const isApp = route !== "/" && route !== "/privacy"
+  const activeNavLabel = APP_NAV.find((item) => item.path === route)?.label || "Navigate"
 
   // If the page was opened from a shared link, offer to load it once.
   useEffect(() => {
@@ -119,13 +131,15 @@ export default function App() {
         </button>
         {isApp && (
           <div className="nav-links">
-            <button className={route === "/builder" ? "active" : ""} onClick={() => navigate("/builder")}>Editor</button>
-            <button className={route === "/templates" ? "active" : ""} onClick={() => navigate("/templates")}>Templates</button>
-            <button className={route === "/analyze" ? "active" : ""} onClick={() => navigate("/analyze")}>ATS Check</button>
-            <button className={route === "/cover" ? "active" : ""} onClick={() => navigate("/cover")}>Cover Letter</button>
-            <button className={route === "/interview" ? "active" : ""} onClick={() => navigate("/interview")}>Interview</button>
-            <button className={route === "/settings" ? "active" : ""} onClick={() => navigate("/settings")}>Settings</button>
+            {APP_NAV.map((item) => (
+              <button key={item.path} className={route === item.path ? "active" : ""} onClick={() => navigate(item.path)}>{item.label}</button>
+            ))}
           </div>
+        )}
+        {isApp && (
+          <button className="mobile-nav-trigger" type="button" aria-haspopup="dialog" onClick={() => setShowMobileNav(true)}>
+            <span>{activeNavLabel}</span><span aria-hidden="true">⌄</span>
+          </button>
         )}
         <div className="nav-right">
           {isApp && saveError ? (
@@ -173,6 +187,25 @@ export default function App() {
         {route === "/privacy" && <Privacy />}
       </main>
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
+      <BottomSheet open={showMobileNav} title="Go to" onClose={() => setShowMobileNav(false)}>
+        <nav className="mobile-nav-menu" aria-label="App sections">
+          {APP_NAV.map((item) => (
+            <button
+              key={item.path}
+              type="button"
+              className={route === item.path ? "active" : ""}
+              aria-current={route === item.path ? "page" : undefined}
+              onClick={() => {
+                setShowMobileNav(false)
+                navigate(item.path)
+              }}
+            >
+              <span>{item.label}</span>
+              {route === item.path && <span aria-hidden="true">✓</span>}
+            </button>
+          ))}
+        </nav>
+      </BottomSheet>
     </div>
   )
 }
