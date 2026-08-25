@@ -9,6 +9,9 @@ import { CoverLetter } from "./pages/CoverLetter"
 import { Settings } from "./pages/Settings"
 import { Interview } from "./pages/Interview"
 import { Privacy } from "./pages/Privacy"
+import { Terms } from "./pages/Terms"
+import { Refund } from "./pages/Refund"
+import { Pricing } from "./pages/Pricing"
 import { getTheme, setTheme, loadStore } from "./lib/storage"
 import { createSampleResume } from "./data/sample"
 import { readSharedResume, clearShareParam } from "./lib/share"
@@ -25,6 +28,27 @@ const APP_NAV = [
   { path: "/interview", label: "Interview" },
   { path: "/settings", label: "Settings" },
 ]
+
+const PUBLIC_ROUTES = new Set(["/", "/pricing", "/privacy", "/tos", "/refund"])
+
+const PAGE_META: Record<string, { title: string; description: string }> = {
+  "/pricing": {
+    title: "Pricing — ResuMate",
+    description: "Start ResuMate free, use a 30-day Career Sprint, or choose Pro for live ATS parsing and a complete job-search workspace.",
+  },
+  "/privacy": {
+    title: "Privacy Policy — ResuMate",
+    description: "How ResuMate handles resume content, account data, AI requests, payments, and privacy rights.",
+  },
+  "/tos": {
+    title: "Terms of Service — ResuMate",
+    description: "Terms for using ResuMate, including accounts, AI tools, and paid plans.",
+  },
+  "/refund": {
+    title: "Refund Policy — ResuMate",
+    description: "ResuMate cancellation and refund terms for future paid plans and digital purchases.",
+  },
+}
 
 function ThemeToggle() {
   const [theme, setT] = useState<"light" | "dark">(getTheme())
@@ -58,8 +82,19 @@ export default function App() {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showMobileNav, setShowMobileNav] = useState(false)
 
-  const isApp = route !== "/" && route !== "/privacy"
+  const isApp = !PUBLIC_ROUTES.has(route)
   const activeNavLabel = APP_NAV.find((item) => item.path === route)?.label || "current page"
+
+  useEffect(() => {
+    const meta = PAGE_META[route]
+    document.title = meta?.title || "ResuMate — Free AI Resume Builder & ATS Checker"
+    const description = document.querySelector<HTMLMetaElement>('meta[name="description"]')
+    if (description) {
+      description.content = meta?.description || "ResuMate — build an ATS-optimized resume in minutes with offline editing, free PDF & Word export, résumé import, and optional AI-powered ATS scoring."
+    }
+    const canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]')
+    if (canonical) canonical.href = `https://resume.builtwai.com${PUBLIC_ROUTES.has(route) ? route : "/"}`
+  }, [route])
 
   // If the page was opened from a shared link, offer to load it once.
   useEffect(() => {
@@ -190,7 +225,10 @@ export default function App() {
         {route === "/cover" && <CoverLetter resume={resume} />}
         {route === "/interview" && <Interview resume={resume} />}
         {route === "/settings" && <Settings />}
+        {route === "/pricing" && <Pricing />}
         {route === "/privacy" && <Privacy />}
+        {route === "/tos" && <Terms />}
+        {route === "/refund" && <Refund />}
       </main>
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
       <BottomSheet open={showMobileNav} title="Go to" onClose={() => setShowMobileNav(false)}>

@@ -1,7 +1,5 @@
-import { navigate } from "../router"
-
 const FEATURES = [
-  { icon: "⚡", title: "No sign-up", text: "Start instantly. Your resume saves to your browser — no account, ever." },
+  { icon: "⚡", title: "Start without sign-up", text: "Build instantly. Your resume saves to this browser unless you later choose account sync." },
   { icon: "🔒", title: "Private by design", text: "Editing and offline checks stay in your browser. AI sends only the text you submit." },
   { icon: "🤖", title: "AI ATS scoring", text: "Paste a job description and get a match score plus tailored fixes." },
   { icon: "📄", title: "PDF & Word export", text: "Download crisp, ATS-parseable PDF and editable .docx files." },
@@ -19,14 +17,14 @@ export function Landing({
   return (
     <div className="landing">
       <section className="hero">
-        <span className="eyebrow">Free · No sign-up · Open in your browser</span>
+        <span className="eyebrow">Free · No account required to start</span>
         <h1>Build an ATS-ready resume<br />in minutes.</h1>
         <p className="hero-sub">ResuMate is a fast, private resume builder with AI-powered ATS scoring, instant optimization tips, and one-click PDF & Word export.</p>
         <div className="hero-cta">
           <button className="btn-primary large" onClick={onStartBlank}>Start building →</button>
           <button className="btn-ghost large" onClick={onStartSample}>Try with a sample</button>
         </div>
-        <p className="hero-note">No email required. Offline editing stays in your browser; AI tools send only what you submit.</p>
+        <p className="hero-note">No email required. Offline editing stays in your browser; AI tools send only what you submit. <a href="/pricing">See planned pricing.</a></p>
       </section>
 
       <section className="features">
@@ -49,7 +47,13 @@ export function Landing({
       </section>
 
       <footer className="landing-footer">
-        <p>ResuMate — privacy-first resume builder. <button className="footer-link" onClick={() => navigate("/privacy")}>Privacy &amp; data</button></p>
+        <p>ResuMate — privacy-first resume builder.</p>
+        <nav className="footer-links" aria-label="Product and legal">
+          <a className="footer-link" href="/pricing">Pricing</a>
+          <a className="footer-link" href="/privacy">Privacy</a>
+          <a className="footer-link" href="/tos">Terms</a>
+          <a className="footer-link" href="/refund">Refunds</a>
+        </nav>
       </footer>
     </div>
   )
