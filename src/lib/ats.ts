@@ -15,6 +15,12 @@ export interface SectionScore {
   note?: string
 }
 
+export interface JobSignal {
+  term: string
+  priority: "required" | "preferred" | "general"
+  matched: boolean
+}
+
 export interface AtsResult {
   score: number // 0-100
   matchedKeywords: string[]
@@ -24,25 +30,30 @@ export interface AtsResult {
   source: "ai" | "local"
   // Optional per-category breakdown shown as bars in the analyzer.
   sections?: SectionScore[]
+  jobSignals?: JobSignal[]
 }
 
 // Build a transparent per-category score breakdown (always computed locally so
 // the analyzer can show it even for AI results).
-export function buildSectionScores(resume: Resume, jd: string): SectionScore[] {
+export function buildSectionScores(resume: Resume, jd: string, targetRole = ""): SectionScore[] {
   const resumeText = resumeToPlainText(resume)
-  const keywords = extractKeywords(jd)
+  const keywords = extractKeywords(`${targetRole} ${jd}`)
   const matched = keywords.filter((k) => keywordInText(resumeText, k))
   const kwPct = keywords.length ? matched.length / keywords.length : 0
+  const prioritized = extractJobSignals(jd, resumeText).filter((signal) => signal.priority !== "general")
+  const priorityPct = prioritized.length
+    ? prioritized.filter((signal) => signal.matched).length / prioritized.length
+    : kwPct
   const bulletCount = resume.experience.reduce((n, e) => n + e.bullets.filter(Boolean).length, 0)
   const quantified = resume.experience.some((e) => e.bullets.some((b) => /\d/.test(b)))
   const wc = wordCount(resume)
 
   const contact = (resume.contact.email ? 1 : 0) + (resume.contact.phone ? 1 : 0) + (resume.contact.location ? 1 : 0)
-  const summaryScore = resume.summary.length > 80 ? 15 : resume.summary.length > 20 ? 8 : 0
-  const expBase = resume.experience.length ? 10 : 0
-  const expBullets = Math.min(12, bulletCount * 2)
-  const expQuant = quantified ? 8 : 0
-  const skills = resume.skills.length ? Math.min(15, resume.skills.reduce((n, g) => n + g.items.length, 0)) : 0
+  const summaryScore = resume.summary.length > 80 ? 10 : resume.summary.length > 20 ? 5 : 0
+  const expBase = resume.experience.length ? 7 : 0
+  const expBullets = Math.min(8, bulletCount)
+  const expQuant = quantified ? 5 : 0
+  const skills = resume.skills.length ? Math.min(10, resume.skills.reduce((n, g) => n + g.items.length, 0)) : 0
   const lengthOk = wc >= 250 && wc <= 850
 
   return [
@@ -53,27 +64,35 @@ export function buildSectionScores(resume: Resume, jd: string): SectionScore[] {
       note: `${matched.length}/${keywords.length || 0} target keywords found`,
     },
     {
+      label: "Priority requirements",
+      score: Math.round(priorityPct * 15),
+      max: 15,
+      note: prioritized.length
+        ? `${prioritized.filter((signal) => signal.matched).length}/${prioritized.length} required or preferred signals found`
+        : "No explicit required or preferred wording detected",
+    },
+    {
       label: "Contact info",
-      score: Math.round((contact / 3) * 10),
-      max: 10,
+      score: Math.round((contact / 3) * 5),
+      max: 5,
       note: contact === 3 ? "Complete" : "Add email, phone, and location",
     },
     {
       label: "Summary",
       score: summaryScore,
-      max: 15,
-      note: summaryScore === 15 ? "Good length" : "Add a 2-3 sentence summary",
+      max: 10,
+      note: summaryScore === 10 ? "Good length" : "Add a 2-3 sentence summary",
     },
     {
       label: "Experience",
-      score: Math.min(30, expBase + expBullets + expQuant),
-      max: 30,
+      score: Math.min(20, expBase + expBullets + expQuant),
+      max: 20,
       note: quantified ? `${bulletCount} bullets, quantified` : `${bulletCount} bullets, add metrics`,
     },
     {
       label: "Skills",
       score: skills,
-      max: 15,
+      max: 10,
       note: skills ? "Present" : "Add a skills section",
     },
     {
@@ -87,9 +106,18 @@ export function buildSectionScores(resume: Resume, jd: string): SectionScore[] {
 
 // ---- Stopwords for keyword extraction ----
 const STOP = new Set(
-  "a an the and or but for nor so yet of to in on at by with from as is are was were be been being this that these those you your we our they their it its will would can could should must have has had do does did not your you our we us i me my he she them his her into out up down over under above below more most less least very also able strong excellent good great team work working role responsibilities responsibility experience years year months ability including include includes etc using use used"
+  "a an the and or but for nor so yet of to in on at by with from as is are was were be been being this that these those you your we our they their it its will would can could should must have has had do does did not your you our we us i me my he she them his her into out up down over under above below more most less least very also able strong excellent good great team work working role responsibilities responsibility experience years year months ability including include includes etc using use used candidate candidates position successful required requirement requirements preferred preference minimum qualifications qualification"
     .split(/\s+/),
 )
+
+const JOB_PHRASES = [
+  "account management", "cloud infrastructure", "content strategy", "cross functional", "customer success",
+  "data analysis", "design systems", "financial modeling", "machine learning", "product strategy",
+  "project management", "quality assurance", "software development", "stakeholder management", "user research",
+]
+
+const REQUIRED_MARKER = /\b(required|must|minimum|need(?:ed)?|you will|responsibilities include)\b/i
+const PREFERRED_MARKER = /\b(preferred|nice to have|bonus|ideally|a plus)\b/i
 
 function normalizeSearchText(text: string): string {
   return text
@@ -127,10 +155,51 @@ export function extractKeywords(jd: string, limit = 25): string[] {
     .slice(0, limit)
 }
 
+// Pull a small, explainable set of signals from explicit requirement language.
+// This is intentionally deterministic: it never guesses credentials or calls a
+// remote model, and every returned term is present in the supplied job text.
+export function extractJobSignals(jd: string, resumeText = "", limit = 12): JobSignal[] {
+  const priorities = new Map<string, JobSignal["priority"]>()
+  const add = (term: string, priority: JobSignal["priority"]) => {
+    if (!term || priorities.has(term)) return
+    priorities.set(term, priority)
+  }
+
+  const normalizedJd = normalizeSearchText(jd)
+  for (const phrase of JOB_PHRASES) {
+    if (keywordInText(normalizedJd, phrase)) add(phrase, "general")
+  }
+
+  for (const segment of jd.split(/[\n.!?;]+/)) {
+    const priority = REQUIRED_MARKER.test(segment)
+      ? "required"
+      : PREFERRED_MARKER.test(segment)
+        ? "preferred"
+        : null
+    if (!priority) continue
+    for (const phrase of JOB_PHRASES) {
+      if (keywordInText(segment, phrase)) {
+        priorities.delete(phrase)
+        priorities.set(phrase, priority)
+      }
+    }
+    for (const term of extractKeywords(segment, 4)) add(term, priority)
+  }
+
+  for (const term of extractKeywords(jd, limit)) add(term, "general")
+  return [...priorities.entries()]
+    .sort((a, b) => {
+      const rank = { required: 0, preferred: 1, general: 2 }
+      return rank[a[1]] - rank[b[1]]
+    })
+    .slice(0, limit)
+    .map(([term, priority]) => ({ term, priority, matched: keywordInText(resumeText, term) }))
+}
+
 // ---- Local heuristic analysis (offline fallback / instant feedback) ----
-export function analyzeLocally(resume: Resume, jd: string): AtsResult {
+export function analyzeLocally(resume: Resume, jd: string, targetRole = ""): AtsResult {
   const resumeText = resumeToPlainText(resume)
-  const keywords = extractKeywords(jd)
+  const keywords = extractKeywords(`${targetRole} ${jd}`)
   const matched: string[] = []
   const missing: string[] = []
   for (const k of keywords) {
@@ -138,23 +207,11 @@ export function analyzeLocally(resume: Resume, jd: string): AtsResult {
     else missing.push(k)
   }
 
-  const keywordScore = keywords.length
-    ? Math.round((matched.length / keywords.length) * 60)
-    : 30
-
-  // Structure / completeness score (40 pts).
-  let structure = 0
-  if (resume.contact.email && resume.contact.phone) structure += 6
-  if (resume.summary && resume.summary.length > 60) structure += 6
-  if (resume.experience.length >= 1) structure += 8
   const bulletCount = resume.experience.reduce((n, e) => n + e.bullets.filter(Boolean).length, 0)
-  if (bulletCount >= 3) structure += 6
-  if (resume.skills.length >= 1) structure += 6
-  if (resume.education.length >= 1) structure += 4
   const wc = wordCount(resume)
-  if (wc >= 250 && wc <= 850) structure += 4
-
-  const score = Math.max(5, Math.min(100, keywordScore + structure))
+  const sections = buildSectionScores(resume, jd, targetRole)
+  const score = Math.max(5, Math.min(100, sections.reduce((sum, section) => sum + section.score, 0)))
+  const jobSignals = extractJobSignals(jd, resumeText)
 
   const suggestions: AtsSuggestion[] = []
   if (missing.length)
@@ -162,6 +219,13 @@ export function analyzeLocally(resume: Resume, jd: string): AtsResult {
       section: "Keywords",
       severity: "high",
       text: `Add or naturally weave in missing terms from the job description: ${missing.slice(0, 8).join(", ")}.`,
+    })
+  const missingPriority = jobSignals.filter((signal) => signal.priority !== "general" && !signal.matched)
+  if (missingPriority.length)
+    suggestions.unshift({
+      section: "Requirements",
+      severity: "high",
+      text: `Review these explicitly requested signals and add them only where they reflect your real experience: ${missingPriority.slice(0, 6).map((signal) => signal.term).join(", ")}.`,
     })
   const quantified = resume.experience.some((e) =>
     e.bullets.some((b) => /\d/.test(b)),
@@ -199,10 +263,10 @@ export function analyzeLocally(resume: Resume, jd: string): AtsResult {
 
   const summary =
     score >= 80
-      ? "Strong match. Your resume aligns well with this role — tighten a few keywords and you're set."
+      ? "Strong local match. Your resume aligns well with this role; review the remaining evidence gaps before applying. This is an estimate, not an employer ATS score."
       : score >= 60
-        ? "Decent match. Address the missing keywords and quantify achievements to push your score higher."
-        : "Needs work. Significant keyword and structure gaps — follow the suggestions below to improve alignment."
+        ? "Promising local match. Address missing job terms and quantify achievements. This is an estimate, not an employer ATS score."
+        : "The local check found meaningful keyword or structure gaps. Use the breakdown to improve alignment; this is not an employer ATS score."
 
   return {
     score,
@@ -211,7 +275,8 @@ export function analyzeLocally(resume: Resume, jd: string): AtsResult {
     suggestions,
     summary,
     source: "local",
-    sections: buildSectionScores(resume, jd),
+    sections,
+    jobSignals,
   }
 }
 
@@ -219,12 +284,13 @@ export function analyzeLocally(resume: Resume, jd: string): AtsResult {
 export async function analyzeWithAI(
   resume: Resume,
   jd: string,
+  targetRole = "",
 ): Promise<AtsResult> {
   const resumeText = resumeToPlainText(resume)
   const res = await fetch("/api/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ resumeText, jobDescription: jd, ...aiClientOverrides() }),
+    body: JSON.stringify({ resumeText, jobDescription: [targetRole, jd].filter(Boolean).join("\n\n"), ...aiClientOverrides() }),
   })
   if (!res.ok) {
     const msg = await res.text().catch(() => "")
@@ -238,7 +304,8 @@ export async function analyzeWithAI(
     suggestions: suggestionList(data.suggestions),
     summary: typeof data.summary === "string" ? data.summary.slice(0, 1000) : "",
     source: "ai",
-    sections: buildSectionScores(resume, jd),
+    sections: buildSectionScores(resume, jd, targetRole),
+    jobSignals: extractJobSignals(jd, resumeText),
   }
 }
 

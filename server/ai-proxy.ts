@@ -1,4 +1,4 @@
-export interface AiEnv {
+export type AiEnv = Cloudflare.Env & {
   AI_API_KEY?: string
   AI_API_URL?: string
   AI_MODEL?: string
@@ -24,9 +24,10 @@ interface OpenAiMessage {
 export const MAX_REQUEST_BYTES = 128 * 1024
 const MAX_PROVIDER_BYTES = 512 * 1024
 const PROVIDER_TIMEOUT_MS = 30_000
-const RATE_LIMIT = 20
-const RATE_WINDOW_MS = 60_000
-const MAX_RATE_BUCKETS = 10_000
+const BYOK_RATE_LIMIT = 20
+const BYOK_RATE_WINDOW_MS = 60_000
+const HOSTED_RATE_WINDOW_MS = 24 * 60 * 60 * 1000
+const SESSION_COOKIE = "__Host-resumate_session"
 
 const PROVIDER_ENDPOINTS = new Set([
   "https://api.openai.com/v1/chat/completions",
@@ -36,8 +37,6 @@ const PROVIDER_ENDPOINTS = new Set([
   "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
   "https://api.deepseek.com/v1/chat/completions",
 ])
-
-const rateBuckets = new Map<string, { count: number; resetAt: number }>()
 
 export class RequestError extends Error {
   constructor(
@@ -78,10 +77,7 @@ export function enforcePostAndOrigin(request: Request): Response | null {
   if (!request.headers.get("Content-Type")?.toLowerCase().startsWith("application/json")) {
     return text("Send a JSON request body", 415)
   }
-  const retryAfter = rateLimit(request)
-  return retryAfter === null
-    ? null
-    : text("Too many requests", 429, { "Retry-After": String(retryAfter) })
+  return null
 }
 
 function sameOrigin(request: Request): boolean {
@@ -96,23 +92,75 @@ function sameOrigin(request: Request): boolean {
   }
 }
 
-function rateLimit(request: Request): number | null {
-  const key = request.headers.get("CF-Connecting-IP") || "unknown"
-  const now = Date.now()
-  const current = rateBuckets.get(key)
-  if (!current || current.resetAt <= now) {
-    if (rateBuckets.size >= MAX_RATE_BUCKETS) {
-      for (const [bucketKey, bucket] of rateBuckets) {
-        if (bucket.resetAt <= now) rateBuckets.delete(bucketKey)
-      }
-      if (rateBuckets.size >= MAX_RATE_BUCKETS) rateBuckets.delete(rateBuckets.keys().next().value as string)
-    }
-    rateBuckets.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS })
-    return null
+function cookieValue(request: Request, name: string): string | null {
+  for (const pair of (request.headers.get("cookie") || "").split(";")) {
+    const [key, ...value] = pair.trim().split("=")
+    if (key === name) return value.join("=") || null
   }
-  if (current.count >= RATE_LIMIT) return Math.max(1, Math.ceil((current.resetAt - now) / 1000))
-  current.count += 1
   return null
+}
+
+async function sha256(value: string): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)))
+  let binary = ""
+  for (const byte of digest) binary += String.fromCharCode(byte)
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")
+}
+
+async function incrementQuota(env: AiEnv, key: string, windowMs: number): Promise<{ attempts: number; windowStartedAt: number } | null> {
+  const now = Date.now()
+  return env.DB.prepare(
+    `INSERT INTO auth_rate_limits (key, attempts, window_started_at) VALUES (?, 1, ?)
+     ON CONFLICT(key) DO UPDATE SET
+       attempts = CASE WHEN ? - window_started_at >= ? THEN 1 ELSE attempts + 1 END,
+       window_started_at = CASE WHEN ? - window_started_at >= ? THEN ? ELSE window_started_at END
+     RETURNING attempts, window_started_at AS windowStartedAt`,
+  ).bind(key.slice(0, 400), now, now, windowMs, now, windowMs, now).first<{ attempts: number; windowStartedAt: number }>()
+}
+
+// Persistent, provider-neutral quota enforcement. User-supplied provider keys
+// receive a short abuse limit; any future hosted allowance additionally
+// requires a verified ResuMate session and is capped by plan.
+export async function enforceAiQuota(
+  request: Request,
+  env: AiEnv,
+  action: string,
+  usesClientKey: boolean,
+): Promise<Response | null> {
+  try {
+    if (usesClientKey) {
+      const ip = request.headers.get("CF-Connecting-IP") || "unknown"
+      const row = await incrementQuota(env, `ai:byok:${action}:${ip}`, BYOK_RATE_WINDOW_MS)
+      if (!row) return text("AI quota unavailable", 503)
+      if (row.attempts > BYOK_RATE_LIMIT) {
+        const retryAfter = Math.max(1, Math.ceil((row.windowStartedAt + BYOK_RATE_WINDOW_MS - Date.now()) / 1000))
+        return text("Too many AI requests", 429, { "Retry-After": String(retryAfter) })
+      }
+      return null
+    }
+
+    const sessionToken = cookieValue(request, SESSION_COOKIE)
+    if (!sessionToken) return text("Sign in with a verified account to use hosted AI", 401)
+    const user = await env.DB.prepare(
+      `SELECT u.id, u.plan, u.email_verified_at AS emailVerifiedAt
+       FROM sessions s JOIN users u ON u.id = s.user_id
+       WHERE s.token_hash = ? AND s.expires_at > ?`,
+    ).bind(await sha256(sessionToken), Date.now()).first<{ id: string; plan: "free" | "sprint" | "pro"; emailVerifiedAt: number | null }>()
+    if (!user) return text("Sign in with a verified account to use hosted AI", 401)
+    if (!user.emailVerifiedAt) return text("Verify your email to use hosted AI", 403)
+
+    const limit = user.plan === "pro" ? 50 : user.plan === "sprint" ? 20 : 3
+    const row = await incrementQuota(env, `ai:hosted:${action}:${user.id}`, HOSTED_RATE_WINDOW_MS)
+    if (!row) return text("AI quota unavailable", 503)
+    if (row.attempts > limit) {
+      const retryAfter = Math.max(1, Math.ceil((row.windowStartedAt + HOSTED_RATE_WINDOW_MS - Date.now()) / 1000))
+      return text("Hosted AI allowance reached", 429, { "Retry-After": String(retryAfter) })
+    }
+    return null
+  } catch (error) {
+    console.error(JSON.stringify({ event: "ai_quota_failed", reason: error instanceof Error ? error.name : "unknown" }))
+    return text("AI quota unavailable", 503)
+  }
 }
 
 export async function readBoundedJson<T>(request: Request): Promise<T> {

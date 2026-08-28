@@ -3,12 +3,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { onRequest as analyze } from "../functions/api/analyze"
 import { onRequest as generate } from "../functions/api/generate"
 
-const env = { AI_API_KEY: "test-key" }
+function quotaDb(attempts = 1, verified = true) {
+  return {
+    prepare: vi.fn((sql: string) => ({
+      bind: vi.fn(() => ({
+        first: vi.fn(async () => sql.includes("FROM sessions")
+          ? { id: "user-1", plan: "free", emailVerifiedAt: verified ? Date.now() : null }
+          : { attempts, windowStartedAt: Date.now() }),
+      })),
+    })),
+  }
+}
+
+function defaultEnv() {
+  return { AI_API_KEY: "test-key", DB: quotaDb() }
+}
 
 function request(path: string, body?: unknown, init: RequestInit = {}) {
   const headers = new Headers(body === undefined ? undefined : {
     "CF-Connecting-IP": crypto.randomUUID(),
     "Content-Type": "application/json",
+    Cookie: "__Host-resumate_session=test-session",
     Origin: "https://resume.builtwai.com",
   })
   for (const [key, value] of new Headers(init.headers)) headers.set(key, value)
@@ -23,7 +38,7 @@ function request(path: string, body?: unknown, init: RequestInit = {}) {
 async function invoke(
   handler: typeof analyze | typeof generate,
   incoming: Request,
-  bindings: Record<string, string | undefined> = env,
+  bindings: unknown = defaultEnv(),
 ) {
   return await handler({ request: incoming, env: bindings } as never)
 }
@@ -74,6 +89,40 @@ describe("AI proxy boundary", () => {
       clientModel: "gpt-4o-mini",
     }))
     expect(response.status).toBe(400)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("does not imply hosted AI is available without a configured provider", async () => {
+    const response = await invoke(analyze, request("/api/analyze", {
+      resumeText: "Resume",
+      jobDescription: "Job description with enough detail",
+    }), { DB: quotaDb() })
+    expect(response.status).toBe(501)
+  })
+
+  it("requires a verified account for future hosted allowances", async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal("fetch", fetchMock)
+    const response = await invoke(analyze, request("/api/analyze", {
+      resumeText: "Resume",
+      jobDescription: "Job description",
+    }), { AI_API_KEY: "test-key", DB: quotaDb(1, false) })
+    expect(response.status).toBe(403)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("enforces persistent D1 quotas for user-supplied providers", async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal("fetch", fetchMock)
+    const response = await invoke(analyze, request("/api/analyze", {
+      resumeText: "Resume",
+      jobDescription: "Job description",
+      clientKey: "user-key",
+      clientUrl: "https://api.openai.com/v1/chat/completions",
+      clientModel: "gpt-4o-mini",
+    }), { DB: quotaDb(21) })
+    expect(response.status).toBe(429)
+    expect(response.headers.get("Retry-After")).toBeTruthy()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 

@@ -73,7 +73,7 @@ function ThemeToggle() {
   }, [theme])
   return (
     <button
-      className="btn-ghost small"
+      className="btn-ghost small theme-toggle"
       onClick={() => setT((t) => (t === "dark" ? "light" : "dark"))}
       title="Toggle light or dark theme"
       aria-label="Toggle light or dark theme"
@@ -186,9 +186,9 @@ export default function App() {
   return (
     <div className="app">
       <a className="skip-link" href="#main">Skip to content</a>
-      <nav className="nav no-print">
+      <nav className={`nav no-print ${isApp ? "app-nav" : "public-nav"}`} aria-label="Primary navigation">
         <button className="brand" onClick={() => navigate("/")} aria-label="ResuMate home">
-          <span className="brand-mark" aria-hidden="true">◈</span> ResuMate
+          <span className="brand-mark" aria-hidden="true">◈</span><span className="brand-name">ResuMate</span>
         </button>
         {isApp && (
           <div className="nav-links">
@@ -216,10 +216,18 @@ export default function App() {
           ) : null}
           <InstallButton />
           {isApp && <button className="icon-btn" onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (press ?)" aria-label="Keyboard shortcuts">⌨</button>}
-          {!account.loading && (
-            <button className="account-nav" onClick={() => navigate(account.user ? "/account" : "/signup")}>
-              {account.user ? account.user.name.split(" ")[0] : "Create account"}
-            </button>
+          {!isApp && <button className="pricing-nav" onClick={() => navigate("/pricing")}>Pricing</button>}
+          {!account.loading && account.user && (
+            <button className="account-nav" onClick={() => navigate("/account")}>{account.user.name.split(" ")[0]}</button>
+          )}
+          {!account.loading && !account.user && !isApp && (
+            <>
+              <button className="sign-in-nav" onClick={() => navigate("/login")}>Sign in</button>
+              <button className="account-nav" onClick={() => navigate("/signup")}>Sign up</button>
+            </>
+          )}
+          {!account.loading && !account.user && isApp && (
+            <button className="account-nav" onClick={() => navigate("/signup")}>Sign up</button>
           )}
           <ThemeToggle />
         </div>
