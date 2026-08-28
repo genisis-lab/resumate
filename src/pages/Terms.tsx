@@ -4,7 +4,7 @@ export function Terms() {
   return (
     <LegalPage
       title="Terms of Service"
-      description="The rules that apply when you use ResuMate, including future accounts and paid plans."
+      description="The rules that apply when you use ResuMate accounts, software tools, and any paid plans offered later."
       summary={
         <p>
           You keep ownership of your resume content. Use ResuMate lawfully, review AI-generated
@@ -41,7 +41,7 @@ export function Terms() {
 
       <LegalSection title="3. Accounts and security">
         <p>
-          If accounts are offered, provide accurate information, protect your login credentials, and
+          When you create an account, provide accurate information, protect your login credentials, and
           promptly notify us of unauthorized access. You are responsible for activity under your
           account unless caused by our failure to use reasonable security. You may not transfer or
           sell an account.

@@ -1,10 +1,22 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "resumate",
-  "compatibility_date": "2026-06-06",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-08-18",
   "compatibility_flags": ["nodejs_compat"],
-  "assets": {
-    "directory": "./dist",
-    "not_found_handling": "single-page-application"
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "resumate-accounts",
+      "database_id": "816a3661-4b18-4421-9e1e-77e73ec467b7",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "APP_URL": "https://resume.builtwai.com",
+    "EMAIL_FROM": "ResuMate <verification@contact.builtwai.com>"
+  },
+  "observability": {
+    "enabled": true
   }
 }

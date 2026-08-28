@@ -24,6 +24,9 @@ const TEMPLATES: { id: TemplateId; label: string }[] = [
   { id: "ats", label: "ATS-Safe" },
   { id: "twocolumn", label: "Two-Column" },
   { id: "creative", label: "Creative" },
+  { id: "executive", label: "Executive" },
+  { id: "compact", label: "Compact" },
+  { id: "technical", label: "Technical" },
 ]
 
 const DENSITIES: { id: Density; label: string }[] = [

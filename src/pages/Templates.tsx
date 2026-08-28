@@ -10,6 +10,9 @@ const TEMPLATES: { id: TemplateId; label: string; desc: string }[] = [
   { id: "ats", label: "ATS-Safe", desc: "Single column, standard headings, maximum parseability." },
   { id: "twocolumn", label: "Two-Column", desc: "Skills & education in a sidebar, experience in the main column." },
   { id: "creative", label: "Creative", desc: "Bold accent header and section underlines for design-forward roles." },
+  { id: "executive", label: "Executive", desc: "Confident hierarchy and conservative rules for senior leadership roles." },
+  { id: "compact", label: "Compact", desc: "Dense single-column structure for experienced candidates with more to fit." },
+  { id: "technical", label: "Technical", desc: "Clear skills, projects, and experience hierarchy for engineering and data roles." },
 ]
 
 export function Templates({

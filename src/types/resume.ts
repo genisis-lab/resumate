@@ -7,6 +7,9 @@ export type TemplateId =
   | "ats"
   | "twocolumn"
   | "creative"
+  | "executive"
+  | "compact"
+  | "technical"
 
 export type SectionKey =
   | "summary"
