@@ -177,13 +177,15 @@ export function extractJobSignals(jd: string, resumeText = "", limit = 12): JobS
         ? "preferred"
         : null
     if (!priority) continue
-    for (const phrase of JOB_PHRASES) {
-      if (keywordInText(segment, phrase)) {
-        priorities.delete(phrase)
-        priorities.set(phrase, priority)
-      }
+    const segmentPhrases = JOB_PHRASES.filter((phrase) => keywordInText(segment, phrase))
+    const phraseWords = new Set(segmentPhrases.flatMap((phrase) => phrase.split(" ")))
+    for (const phrase of segmentPhrases) {
+      priorities.delete(phrase)
+      priorities.set(phrase, priority)
     }
-    for (const term of extractKeywords(segment, 4)) add(term, priority)
+    for (const term of extractKeywords(segment, 4)) {
+      if (!phraseWords.has(term)) add(term, priority)
+    }
   }
 
   for (const term of extractKeywords(jd, limit)) add(term, "general")
