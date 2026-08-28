@@ -60,7 +60,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
   border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50;
 }
 .brand {
-  border: none; background: none; font-size: 18px; font-weight: 700;
+  min-width: 44px; min-height: 44px; padding: 0 4px; border: none; background: none; font-size: 18px; font-weight: 700;
   color: var(--text); display: flex; align-items: center; gap: 7px;
 }
 .brand-mark { color: var(--brand); }
@@ -73,7 +73,12 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 .nav-links button:hover { background: var(--surface-2); color: var(--text); }
 .nav-links button.active { background: var(--brand-soft); color: var(--brand); }
 .nav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-.account-nav { min-height: 36px; padding: 8px 12px; border: 0; border-radius: 8px; background: var(--text); color: var(--surface); font-size: 14px; font-weight: 600; transition: transform .7s cubic-bezier(.32,.72,0,1), opacity .3s cubic-bezier(.32,.72,0,1); }
+.account-nav, .pricing-nav, .sign-in-nav { min-height: 44px; padding: 8px 12px; border: 0; border-radius: 8px; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.account-nav { background: var(--text); color: var(--surface); transition: transform .7s cubic-bezier(.32,.72,0,1), opacity .3s cubic-bezier(.32,.72,0,1); }
+.pricing-nav { background: var(--brand-soft); color: var(--brand); }
+.sign-in-nav { background: transparent; color: var(--text); }
+.pricing-nav:hover, .sign-in-nav:hover { background: var(--surface-2); }
+.theme-toggle { min-width: 44px; min-height: 44px; padding: 0; }
 .account-nav:hover { transform: translateY(-2px); }
 .account-nav:active { transform: scale(.98); }
 .mobile-nav-trigger { display: none; }
@@ -248,6 +253,15 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 .analyze-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 22px; margin-top: 22px; }
 .jd-input { width: 100%; min-height: 320px; padding: 14px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); color: var(--text); font-size: 14px; font-family: inherit; resize: vertical; }
 .jd-actions { display: flex; gap: 10px; margin-top: 12px; }
+.analysis-source { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+.analysis-source > div:first-child { min-width: 0; display: grid; gap: 3px; }
+.analysis-source strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.analysis-source span { color: var(--muted); font-size: 11px; line-height: 1.4; }
+.analysis-source-actions { display: flex; flex: none; gap: 6px; }
+.file-action { position: relative; display: inline-flex !important; align-items: center; cursor: pointer; }
+.file-action input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.analysis-role { display: grid; gap: 6px; margin-bottom: 12px; color: var(--text-soft); font-size: 13px; font-weight: 650; }
+.analysis-role em { color: var(--muted); font-size: 11px; font-style: normal; font-weight: 500; }
 .hint-text { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin-top: 14px; }
 .error { color: var(--bad); font-size: 13px; margin-top: 10px; }
 .result-pane { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow); }
@@ -281,6 +295,15 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 .suggestion.sev-low { border-left-color: var(--brand); }
 .sug-section { font-weight: 700; font-size: 12px; flex: none; width: 84px; color: var(--text-soft); }
 .sug-text { font-size: 13.5px; line-height: 1.5; }
+.job-signals { padding: 18px 0; border-bottom: 1px solid var(--border); }
+.job-signals h3 { margin: 0 0 4px; font-size: 14px; }
+.job-signals > p { margin: 0 0 12px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.signal-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.job-signal { min-width: 0; display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+.job-signal > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 650; }
+.job-signal small { color: var(--muted); font-size: 10px; text-transform: capitalize; }
+.job-signal.matched { border-color: color-mix(in srgb, var(--good) 35%, var(--border)); background: var(--good-bg); }
+.job-signal.missing { border-color: color-mix(in srgb, var(--ok) 35%, var(--border)); }
 
 /* ---- Templates gallery ---- */
 .template-gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; margin-top: 22px; }
@@ -552,7 +575,7 @@ mark.hl { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 2p
   .field-input, .input, .select, .jd-input, .cover-text, .input.textarea { font-size: 16px; }
 
   /* ---- Nav: compact bar with a single mobile section menu ---- */
-  .nav { min-height: 56px; gap: 8px; padding: 8px 12px; }
+  .nav { min-height: 60px; gap: 8px; padding: 8px 12px; }
   .brand { font-size: 16px; }
   .nav-links { display: none; }
   .mobile-nav-trigger {
@@ -571,7 +594,7 @@ mark.hl { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 2p
     line-height: 20px;
     font-weight: 600;
   }
-  .nav-right { gap: 4px; padding: 0; }
+  .nav-right { min-width: 0; gap: 4px; padding: 0; }
   .nav-right .install-button, .nav-right .icon-btn { display: none; }
   .saved-pill { font-size: 11px; padding: 3px 7px; }
   .save-warning { max-width: 150px; font-size: 11px; }
@@ -640,6 +663,11 @@ mark.hl { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 2p
   .analyze, .templates-page { padding: 18px 14px 48px; }
   .analyze-grid { grid-template-columns: 1fr; gap: 16px; }
   .jd-input { min-height: 160px; }
+  .analysis-source { align-items: stretch; flex-direction: column; }
+  .analysis-source-actions { flex-wrap: wrap; }
+  .analysis-source-actions > * { flex: 1; justify-content: center; }
+  .jd-actions { flex-wrap: wrap; }
+  .jd-actions > button { flex: 1 1 160px; }
   .keywords { grid-template-columns: 1fr; gap: 12px; }
   .result-top { flex-direction: column; text-align: center; gap: 12px; }
   .result-pane { padding: 16px; }
@@ -684,8 +712,8 @@ mark.hl { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 2p
   .pricing-final { padding: 38px 18px; }
 
   /* ---- Comfortable tap targets ---- */
-  .btn-primary, .btn-secondary, .btn-ghost { min-height: 40px; }
-  .small { min-height: 36px; }
+  .btn-primary, .btn-secondary, .btn-ghost { min-height: 44px; }
+  .small { min-height: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -710,7 +738,8 @@ mark.hl { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 2p
   .gauge-score { font-size: 25px; }
   .suggestion { flex-direction: column; gap: 3px; }
   .sug-section { width: 100%; }
-  .nav-right .btn-ghost, .nav-right button { padding: 6px 8px; font-size: 13px; }
+  .signal-list { grid-template-columns: 1fr; }
+  .nav-right .btn-ghost, .nav-right button { min-height: 44px; padding: 6px 8px; font-size: 13px; }
 }
 
 /* ===== Feature batch: PWA, fit-to-page, writing coach, custom sections, share, shortcuts ===== */
@@ -887,7 +916,15 @@ mark.hl { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 2p
   .landing-hero h1, .auth-intro h1 { font-size: 40px; }
   .product-paper { margin: 12px; padding: 32px 24px; }
   .template-stack { margin-left: -32px; margin-right: -32px; transform: scale(.62); min-height: 290px; }
-  .account-nav { max-width: 108px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .public-nav { gap: 2px; padding-inline: 6px; }
+  .public-nav .nav-right { gap: 1px; }
+  .public-nav .pricing-nav, .public-nav .sign-in-nav, .public-nav .account-nav { padding-inline: 7px; }
+}
+
+@media (max-width: 360px) {
+  .public-nav .brand { width: 44px; padding: 0; justify-content: center; }
+  .public-nav .brand-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .public-nav .theme-toggle { min-width: 40px; width: 40px; }
 }
 
 .icon-btn {

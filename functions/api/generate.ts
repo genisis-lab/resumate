@@ -4,6 +4,7 @@ import {
   type ClientAiOptions,
   aiSettings,
   callAI,
+  enforceAiQuota,
   enforcePostAndOrigin,
   json,
   limitedString,
@@ -184,6 +185,8 @@ async function handle(request: Request, env: AiEnv): Promise<Response> {
     if (invalid) return invalid
     const settings = aiSettings(body, env)
     if (!settings) return text(body.clientKey ? "Unsupported AI provider" : "AI not configured", body.clientKey ? 400 : 501)
+    const quotaResponse = await enforceAiQuota(request, env, `generate:${body.task}`, Boolean(body.clientKey))
+    if (quotaResponse) return quotaResponse
 
     if (body.task === "rewrite" || body.task === "quantify") return await rewriteBullets(body, settings)
     if (body.task === "summary" || body.task === "summary_scratch") return await generateSummary(body, settings)

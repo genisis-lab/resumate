@@ -1,10 +1,11 @@
 import React, { useState } from "react"
 import { Resume } from "../types/resume"
-import { AtsResult, analyzeResume, analyzeLocally } from "../lib/ats"
+import { AtsResult, analyzeWithAI, analyzeLocally } from "../lib/ats"
 import { aiTailorResume, aiProofread, TailorResult } from "../lib/ai"
 import { listJDs, saveJD, deleteJD, SavedJD } from "../lib/jdLibrary"
 import { ResumePreview } from "../templates/ResumePreview"
 import { navigate } from "../router"
+import { importResumeFromFile } from "../lib/importResume"
 
 function ScoreGauge({ score }: { score: number }) {
   const tone = score >= 80 ? "good" : score >= 60 ? "ok" : "bad"
@@ -40,6 +41,10 @@ export function Analyze({
     }
   })
   const [result, setResult] = useState<AtsResult | null>(null)
+  const [targetRole, setTargetRole] = useState("")
+  const [uploadedResume, setUploadedResume] = useState<Resume | null>(null)
+  const [uploadedName, setUploadedName] = useState("")
+  const [importing, setImporting] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [tailoring, setTailoring] = useState(false)
@@ -49,6 +54,33 @@ export function Analyze({
   const [issues, setIssues] = useState<string[] | null>(null)
   const [proofErr, setProofErr] = useState("")
   const [jds, setJds] = useState<SavedJD[]>(() => listJDs())
+  const analysisResume = uploadedResume || resume
+
+  async function onResumeFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Choose a PDF or text resume no larger than 5 MB.")
+      return
+    }
+    if (file.type && file.type !== "application/pdf" && file.type !== "text/plain" && !file.name.toLowerCase().endsWith(".txt")) {
+      setError("Choose a text-based PDF or .txt resume.")
+      return
+    }
+    setError("")
+    setImporting(true)
+    try {
+      const parsed = await importResumeFromFile(file)
+      setUploadedResume(parsed)
+      setUploadedName(file.name)
+      setResult(null)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "That resume could not be read.")
+    } finally {
+      setImporting(false)
+    }
+  }
 
   function onJd(v: string) {
     setJd(v)
@@ -80,14 +112,16 @@ export function Analyze({
   }
 
   async function run(useAi: boolean) {
-    if (!jd.trim()) {
-      setError("Paste a job description first.")
+    if (jd.trim().length < 80) {
+      setError("Paste at least 80 characters from the job description for a useful comparison.")
       return
     }
     setError("")
     setLoading(true)
     try {
-      const res = useAi ? await analyzeResume(resume, jd) : analyzeLocally(resume, jd)
+      const res = useAi
+        ? await analyzeWithAI(analysisResume, jd, targetRole)
+        : analyzeLocally(analysisResume, jd, targetRole)
       setResult(res)
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e))
@@ -135,12 +169,29 @@ export function Analyze({
     <div className="analyze">
       <div className="analyze-head">
         <button className="btn-ghost small" onClick={() => navigate("/builder")}>← Back to editor</button>
-        <h1>ATS Score &amp; Optimization</h1>
-        <p className="muted">Paste the job description you're targeting. We'll score your resume against it and suggest concrete improvements.</p>
+        <h1>Job-specific resume check</h1>
+        <p className="muted">Compare a resume with a real job description using a transparent, deterministic baseline. The score is guidance, not an employer's private ATS result.</p>
       </div>
 
       <div className="analyze-grid">
         <div className="jd-pane">
+          <div className="analysis-source" aria-label="Resume used for this check">
+            <div>
+              <strong>{uploadedResume ? uploadedName : "Current editor resume"}</strong>
+              <span>{uploadedResume ? "Parsed locally for this analysis only" : "Uses the resume open in your editor"}</span>
+            </div>
+            <div className="analysis-source-actions">
+              <label className="btn-ghost small file-action">
+                {importing ? "Reading…" : "Use PDF or TXT"}
+                <input type="file" accept="application/pdf,text/plain,.txt" onChange={onResumeFile} disabled={importing} aria-label="Choose a PDF or text resume for analysis" />
+              </label>
+              {uploadedResume && <button className="btn-ghost small" onClick={() => { setUploadedResume(null); setUploadedName(""); setResult(null) }}>Use editor resume</button>}
+            </div>
+          </div>
+          <label className="analysis-role">
+            <span>Target role <em>optional</em></span>
+            <input className="input" value={targetRole} onChange={(event) => setTargetRole(event.target.value.slice(0, 160))} placeholder="e.g. Senior Product Designer" />
+          </label>
           <div className="jd-library">
             <select className="select" defaultValue="" onChange={(e) => { onLoadJd(e.target.value); e.target.value = "" }} title="Load a saved job description">
               <option value="">Saved jobs…</option>
@@ -168,11 +219,11 @@ export function Analyze({
             aria-label="Job description"
           />
           <div className="jd-actions">
-            <button className="btn-primary" disabled={loading} onClick={() => run(true)}>
-              {loading ? "Analyzing\u2026" : "\u2728 Analyze with AI"}
+            <button className="btn-primary" disabled={loading} onClick={() => run(false)}>
+              {loading ? "Checking\u2026" : "Run local job match"}
             </button>
-            <button className="btn-ghost" disabled={loading} onClick={() => run(false)} title="Instant offline scoring">
-              Quick offline check
+            <button className="btn-ghost" disabled={loading} onClick={() => run(true)} title="Requires a configured AI provider">
+              Optional AI review
             </button>
           </div>
           <div className="jd-actions">
@@ -224,14 +275,14 @@ export function Analyze({
             </div>
           )}
           {error && <p className="error">{error}</p>}
-          <p className="hint-text">Offline checks stay in this browser. AI analysis sends the selected resume and job-description text through ResuMate's serverless proxy to the configured provider; if AI is unavailable, the app falls back to the local check.</p>
+          <p className="hint-text">The local job match and uploaded file stay in this browser. Optional AI actions send only the selected resume and job-description text through ResuMate's validated server boundary and require a configured provider; they do not silently replace the local result.</p>
         </div>
 
         <div className="result-pane">
           {!result && !loading && (
             <div className="empty-state">
               <div className="empty-emoji" aria-hidden="true">📊</div>
-              <p>Your ATS score and tailored suggestions will appear here.</p>
+              <p>Your local match score, requirement signals, and suggestions will appear here.</p>
             </div>
           )}
           {result && (
@@ -239,7 +290,7 @@ export function Analyze({
               <div className="result-top">
                 <ScoreGauge score={result.score} />
                 <div className="result-summary">
-                  <span className={`badge ${result.source}`}>{result.source === "ai" ? "AI analysis" : "Offline analysis"}</span>
+                  <span className={`badge ${result.source}`}>{result.source === "ai" ? "Optional AI review" : "Deterministic local check"}</span>
                   <p>{result.summary}</p>
                 </div>
               </div>
@@ -264,6 +315,20 @@ export function Analyze({
                       </div>
                     )
                   })}
+                </div>
+              )}
+
+              {result.jobSignals && result.jobSignals.length > 0 && (
+                <div className="job-signals">
+                  <h3>Job-description signals</h3>
+                  <p>Required and preferred wording is prioritized; add a term only when it reflects your real experience.</p>
+                  <div className="signal-list">
+                    {result.jobSignals.map((signal) => (
+                      <span key={`${signal.priority}:${signal.term}`} className={`job-signal ${signal.matched ? "matched" : "missing"}`}>
+                        <span>{signal.term}</span><small>{signal.priority}{signal.matched ? " · found" : " · review"}</small>
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -310,7 +375,7 @@ export function Analyze({
             <button className="btn-ghost small" onClick={() => navigate("/cover")}>✍️ Generate cover letter</button>
           </div>
           <div className="hl-preview">
-            <ResumePreview resume={resume} highlight={result.matchedKeywords} />
+            <ResumePreview resume={analysisResume} highlight={result.matchedKeywords} />
           </div>
         </section>
       )}

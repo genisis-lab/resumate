@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "ResuMate - a fast, no-signup, privacy-first AI resume builder with ATS scoring and PDF/Word export.",
+  "description": "ResuMate - self-serve resume-building software with deterministic job matching and PDF/Word export.",
   "engines": {
     "node": ">=22"
   },

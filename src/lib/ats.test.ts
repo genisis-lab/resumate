@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { createSampleResume } from "../data/sample"
-import { analyzeLocally, extractKeywords, keywordInText } from "./ats"
+import { analyzeLocally, extractJobSignals, extractKeywords, keywordInText } from "./ats"
 
 describe("ATS keyword matching", () => {
   it("normalizes punctuation and avoids noisy phrase artifacts", () => {
@@ -27,5 +27,18 @@ describe("ATS keyword matching", () => {
     expect(result.matchedKeywords).toContain("designer")
     expect(result.missingKeywords).not.toContain("designer.")
     expect(result.missingKeywords).not.toContain("designer lead")
+    expect(result.sections?.reduce((sum, section) => sum + section.max, 0)).toBe(100)
+    expect(result.summary).toContain("not an employer ATS score")
+  })
+
+  it("prioritizes explicit requirements and marks only exact evidence", () => {
+    const signals = extractJobSignals(
+      "Required: project management and stakeholder management. Nice to have: machine learning. You will lead delivery.",
+      "Led stakeholder management for product delivery.",
+    )
+
+    expect(signals[0].priority).toBe("required")
+    expect(signals).toContainEqual(expect.objectContaining({ term: "stakeholder management", priority: "required", matched: true }))
+    expect(signals).toContainEqual(expect.objectContaining({ term: "machine learning", priority: "preferred", matched: false }))
   })
 })

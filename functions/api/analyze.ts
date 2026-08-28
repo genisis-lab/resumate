@@ -3,6 +3,7 @@ import {
   type ClientAiOptions,
   aiSettings,
   callAI,
+  enforceAiQuota,
   enforcePostAndOrigin,
   json,
   limitedString,
@@ -73,6 +74,8 @@ async function handle(request: Request, env: AiEnv): Promise<Response> {
 
     const settings = aiSettings(body, env)
     if (!settings) return text(body.clientKey ? "Unsupported AI provider" : "AI not configured", body.clientKey ? 400 : 501)
+    const quotaResponse = await enforceAiQuota(request, env, "analyze", Boolean(body.clientKey))
+    if (quotaResponse) return quotaResponse
     const content = await callAI(
       settings,
       [
