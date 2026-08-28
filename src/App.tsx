@@ -12,6 +12,10 @@ import { Privacy } from "./pages/Privacy"
 import { Terms } from "./pages/Terms"
 import { Refund } from "./pages/Refund"
 import { Pricing } from "./pages/Pricing"
+import { AuthPage } from "./pages/Auth"
+import { VerifyEmail } from "./pages/VerifyEmail"
+import { Account } from "./pages/Account"
+import { useAccount } from "./lib/auth"
 import { getTheme, setTheme, loadStore } from "./lib/storage"
 import { createSampleResume } from "./data/sample"
 import { readSharedResume, clearShareParam } from "./lib/share"
@@ -29,12 +33,12 @@ const APP_NAV = [
   { path: "/settings", label: "Settings" },
 ]
 
-const PUBLIC_ROUTES = new Set(["/", "/pricing", "/privacy", "/tos", "/refund"])
+const PUBLIC_ROUTES = new Set(["/", "/pricing", "/privacy", "/tos", "/refund", "/login", "/signup", "/verify-email", "/account"])
 
 const PAGE_META: Record<string, { title: string; description: string }> = {
   "/pricing": {
     title: "Pricing — ResuMate",
-    description: "Start ResuMate free, use a 30-day Career Sprint, or choose Pro for live ATS parsing and a complete job-search workspace.",
+    description: "Review ResuMate's free tier and planned paid software plans. Checkout is not active.",
   },
   "/privacy": {
     title: "Privacy Policy — ResuMate",
@@ -47,6 +51,18 @@ const PAGE_META: Record<string, { title: string; description: string }> = {
   "/refund": {
     title: "Refund Policy — ResuMate",
     description: "ResuMate cancellation and refund terms for future paid plans and digital purchases.",
+  },
+  "/signup": {
+    title: "Create an account — ResuMate",
+    description: "Create a verified ResuMate account to manage software access and future upgrade options.",
+  },
+  "/login": {
+    title: "Sign in — ResuMate",
+    description: "Sign in to your verified ResuMate account.",
+  },
+  "/account": {
+    title: "Your account — ResuMate",
+    description: "Manage your ResuMate account and plan.",
   },
 }
 
@@ -81,19 +97,29 @@ export default function App() {
   const sharedChecked = useRef(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showMobileNav, setShowMobileNav] = useState(false)
+  const account = useAccount()
 
   const isApp = !PUBLIC_ROUTES.has(route)
   const activeNavLabel = APP_NAV.find((item) => item.path === route)?.label || "current page"
 
   useEffect(() => {
     const meta = PAGE_META[route]
-    document.title = meta?.title || "ResuMate — Free AI Resume Builder & ATS Checker"
+    document.title = meta?.title || "ResuMate — Self-serve resume builder"
     const description = document.querySelector<HTMLMetaElement>('meta[name="description"]')
     if (description) {
-      description.content = meta?.description || "ResuMate — build an ATS-optimized resume in minutes with offline editing, free PDF & Word export, résumé import, and optional AI-powered ATS scoring."
+      description.content = meta?.description || "Build an ATS-conscious resume with browser-first editing, local job-description checks, and PDF or Word export."
     }
     const canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]')
     if (canonical) canonical.href = `https://resume.builtwai.com${PUBLIC_ROUTES.has(route) ? route : "/"}`
+    let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]')
+    if (!robots) {
+      robots = document.createElement("meta")
+      robots.name = "robots"
+      document.head.appendChild(robots)
+    }
+    robots.content = new Set(["/login", "/signup", "/verify-email", "/account"]).has(route)
+      ? "noindex, nofollow"
+      : "index, follow"
   }, [route])
 
   // If the page was opened from a shared link, offer to load it once.
@@ -189,7 +215,12 @@ export default function App() {
             <span className="saved-pill" role="status" aria-live="polite">Saved</span>
           ) : null}
           <InstallButton />
-          <button className="icon-btn" onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (press ?)" aria-label="Keyboard shortcuts">⌨</button>
+          {isApp && <button className="icon-btn" onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (press ?)" aria-label="Keyboard shortcuts">⌨</button>}
+          {!account.loading && (
+            <button className="account-nav" onClick={() => navigate(account.user ? "/account" : "/signup")}>
+              {account.user ? account.user.name.split(" ")[0] : "Create account"}
+            </button>
+          )}
           <ThemeToggle />
         </div>
       </nav>
@@ -206,6 +237,7 @@ export default function App() {
               replaceResume(createSampleResume())
               navigate("/builder")
             }}
+            onCreateAccount={() => navigate("/signup")}
           />
         )}
         {route === "/builder" && (
@@ -229,6 +261,10 @@ export default function App() {
         {route === "/privacy" && <Privacy />}
         {route === "/tos" && <Terms />}
         {route === "/refund" && <Refund />}
+        {route === "/signup" && <AuthPage mode="signup" onAuthenticated={account.refresh} />}
+        {route === "/login" && <AuthPage mode="login" onAuthenticated={account.refresh} />}
+        {route === "/verify-email" && <VerifyEmail onVerified={account.refresh} />}
+        {route === "/account" && <Account user={account.user} onChanged={account.refresh} />}
       </main>
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
       <BottomSheet open={showMobileNav} title="Go to" onClose={() => setShowMobileNav(false)}>

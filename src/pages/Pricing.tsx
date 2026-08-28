@@ -7,15 +7,9 @@ const PLANS = [
     price: "$0",
     cadence: "forever",
     description: "Build one strong resume and see where it needs work.",
-    features: [
-      "1 active resume and ATS-safe template",
-      "3 PDF exports, plus plain-text export",
-      "3 basic local ATS scans each month",
-      "Top keywords and 3 improvement tips",
-      "1 saved job and 1 share link",
-    ],
-    action: "Start free",
-    onClick: () => navigate("/builder"),
+    features: ["1 active resume", "3 ATS-safe templates", "3 PDF or Word exports each month", "5 local ATS checks each month", "Browser storage and manual backup"],
+    action: "Create free account",
+    onClick: () => navigate("/signup"),
   },
   {
     name: "Career Sprint",
@@ -24,10 +18,10 @@ const PLANS = [
     description: "A focused toolkit for an active application cycle.",
     features: [
       "5 job-specific resume versions",
-      "10 Live ATS Parse Tests",
-      "40 AI writing and tailoring actions",
+      "Expanded local ATS checks",
+      "40 hosted AI actions when available",
       "All templates and unlimited PDF/Word exports",
-      "Application kits, interview prep, and cloud backup",
+      "Interview tools and 30-day cloud sync when available",
     ],
     action: "Get launch notice",
     href: "mailto:support@builtwai.com?subject=ResuMate%20Career%20Sprint%20launch",
@@ -40,9 +34,9 @@ const PLANS = [
     description: "The complete workspace for a longer or multi-role search.",
     features: [
       "Unlimited resumes, jobs, and applications",
-      "25 Live ATS Parse Tests each month",
-      "150 AI actions each month",
-      "1-year version history and 5-device sync",
+      "Hosted parser testing when available",
+      "150 hosted AI actions each month when available",
+      "Version history and multi-device sync when available",
       "Priority support and 25 active share links",
     ],
     action: "Get launch notice",
@@ -52,33 +46,30 @@ const PLANS = [
 
 const COMPARISON = [
   { feature: "Active resumes", free: "1", sprint: "5 versions", pro: "Unlimited" },
-  { feature: "Templates", free: "1 ATS-safe", sprint: "All", pro: "All" },
-  { feature: "PDF exports", free: "3 lifetime", sprint: "Unlimited", pro: "Unlimited" },
-  { feature: "Word exports", free: "—", sprint: "Unlimited", pro: "Unlimited" },
-  { feature: "Local ATS scans", free: "3 / month", sprint: "Unlimited", pro: "Unlimited" },
-  { feature: "Live ATS Parse Tests", free: "—", sprint: "10", pro: "25 / month" },
-  { feature: "AI actions", free: "—", sprint: "40", pro: "150 / month" },
-  { feature: "Cloud backup", free: "—", sprint: "30 days", pro: "Included" },
-  { feature: "Version history", free: "Current", sprint: "30 days", pro: "1 year" },
-  { feature: "Tracked applications", free: "5", sprint: "50", pro: "Unlimited" },
+  { feature: "Templates", free: "3 ATS-safe", sprint: "All 9", pro: "All 9" },
+  { feature: "PDF or Word exports", free: "3 / month", sprint: "Unlimited", pro: "Unlimited" },
+  { feature: "Local ATS checks", free: "5 / month", sprint: "Expanded", pro: "Expanded" },
+  { feature: "Hosted AI actions", free: "—", sprint: "40 planned", pro: "150 planned" },
+  { feature: "Cloud sync", free: "—", sprint: "30 days planned", pro: "Planned" },
+  { feature: "Version history", free: "Current", sprint: "30 days planned", pro: "1 year planned" },
 ]
 
 const FAQS = [
   {
     question: "Is ResuMate still free?",
-    answer: "Yes. The free plan will continue to include the core editor, one resume, a basic local ATS check, and limited exports. Paid plans are not live yet.",
+    answer: "Yes. The planned free tier includes one resume, three ATS-safe templates, five local ATS checks each month, and three PDF or Word exports each month. During this billing preview, current editor capabilities remain available.",
   },
   {
-    question: "What is a Live ATS Parse Test?",
-    answer: "It tests the PDF or Word file you plan to submit with an online recruiting-style parser, then shows what contact details, roles, dates, skills, and sections it could actually read. It is not a promise of how every employer's private ATS will rank you.",
+    question: "Is hosted ATS parsing live?",
+    answer: "No. ResuMate currently offers an on-device structure and keyword check. Hosted file parsing is a planned paid feature and will not be described as available until production testing is complete.",
   },
   {
     question: "Does Career Sprint renew automatically?",
-    answer: "No. Career Sprint is a one-time 30-day pass. It ends without another charge.",
+    answer: "The intended offer is a one-time 30-day pass with no renewal. Checkout is not active yet, so no purchase or charge can occur today.",
   },
   {
     question: "Can I cancel Pro anytime?",
-    answer: "Yes. Cancellation stops the next renewal, and access normally continues through the current paid period.",
+    answer: "That is the intended policy. Pro is not for sale yet; final renewal and cancellation terms will be shown before any checkout is activated.",
   },
   {
     question: "What counts as an AI action?",
@@ -123,8 +114,8 @@ export function Pricing() {
         <span className="pricing-status">Planned launch pricing</span>
         <h1>Pay for the search,<br />not another forever subscription.</h1>
         <p>
-          Start free. Choose a 30-day Career Sprint when applications get serious, or use Pro for a
-          longer job search with more live parsing, tailoring, and history.
+          Create a free account today. Career Sprint and Pro show the intended software limits so
+          you can evaluate the upgrade path before checkout is activated.
         </p>
         <a className="pricing-jump" href="#compare">Compare every limit ↓</a>
       </header>
@@ -152,13 +143,13 @@ export function Pricing() {
       </section>
 
       <p className="pricing-honesty">
-        Paid accounts and billing are not live yet. These are planned launch prices and limits, shown
-        early so there are no surprise paywalls later.
+        Paid accounts and checkout are not live. These are target launch prices and limits, not an
+        offer to purchase. Current editor access is unchanged during this preview.
       </p>
 
       <section className="pricing-section" id="compare">
         <div className="pricing-section-head">
-          <span>Plan details</span>
+          <span>Planned plan details</span>
           <h2>Know exactly what changes.</h2>
         </div>
         <div className="comparison" role="table" aria-label="Plan comparison">
@@ -181,12 +172,12 @@ export function Pricing() {
 
       <section className="ats-lab">
         <div>
-          <span className="pricing-status">Premium centerpiece</span>
-          <h2>See what recruiting software can actually read.</h2>
+          <span className="pricing-status">Upcoming capability</span>
+          <h2>Test the exported file, not only the editor text.</h2>
           <p>
-            A Live ATS Parse Test sends the exact file you plan to apply with to an online
-            recruiting-style parser. ResuMate then checks whether it recognized your name, roles,
-            dates, skills, sections, and text order—and shows the extracted recruiter view.
+            Hosted file parsing is in development. When it is production ready, it will test the
+            exact PDF or Word file you plan to submit and show the extracted text order. The local
+            keyword and structure check is the only ATS analysis promised today.
           </p>
         </div>
         <div className="parse-receipt" aria-label="Example ATS parse result">
@@ -194,7 +185,7 @@ export function Pricing() {
           <div><span>Employment history</span><strong className="parse-good">4 of 4 roles</strong></div>
           <div><span>Skills section</span><strong className="parse-warn">Wrong position</strong></div>
           <div><span>Document order</span><strong className="parse-warn">1 issue found</strong></div>
-          <p>Example result · never presented as an employer's private score</p>
+          <p>Illustrative future output · not a live result or an employer score</p>
         </div>
       </section>
 
@@ -215,8 +206,8 @@ export function Pricing() {
 
       <section className="pricing-final">
         <h2>Build the resume first.<br />Upgrade when the search demands it.</h2>
-        <button className="btn-primary large" type="button" onClick={() => navigate("/builder")}>Start free →</button>
-        <p>Editing stays in your browser. No card required.</p>
+        <button className="btn-primary large" type="button" onClick={() => navigate("/signup")}>Create a free account</button>
+        <p>No card required. Checkout is not active.</p>
       </section>
 
       <footer className="landing-footer">

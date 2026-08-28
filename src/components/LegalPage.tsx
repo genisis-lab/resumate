@@ -24,7 +24,7 @@ export function LegalPage({
         <p className="legal-kicker">ResuMate policies</p>
         <h1>{title}</h1>
         <p className="page-sub">{description}</p>
-        <p className="legal-date">Effective and last updated August 25, 2026</p>
+        <p className="legal-date">Effective and last updated August 27, 2026</p>
       </header>
 
       <aside className="legal-summary" aria-label="Policy summary">

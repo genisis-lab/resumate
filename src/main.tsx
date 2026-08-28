@@ -4,6 +4,7 @@ import App from "./App"
 import { ErrorBoundary } from "./components/ErrorBoundary"
 import { getTheme, setTheme } from "./lib/storage"
 import { registerServiceWorker } from "./lib/pwa"
+import "@fontsource-variable/manrope"
 import "./index.css"
 
 // Apply persisted theme before first paint.
