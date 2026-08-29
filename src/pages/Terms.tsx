@@ -4,7 +4,7 @@ export function Terms() {
   return (
     <LegalPage
       title="Terms of Service"
-      description="The rules that apply when you use ResuMate accounts, software tools, and any paid plans offered later."
+      description="The rules that apply when you use ResuMate accounts, software tools, and paid plans."
       summary={
         <p>
           You keep ownership of your resume content. Use ResuMate lawfully, review AI-generated
@@ -84,7 +84,7 @@ export function Terms() {
 
       <LegalSection title="7. Paid plans, trials, and renewal">
         <p>
-          If ResuMate offers a paid plan, the checkout page will show the price, currency, billing
+          For a paid plan, the checkout page will show the price, currency, billing
           period, included features, taxes, trial terms, and whether the plan renews automatically
           before you authorize payment. Subscriptions renew for the displayed period until canceled.
         </p>

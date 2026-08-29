@@ -4,10 +4,10 @@ export function Refund() {
   return (
     <LegalPage
       title="Refund Policy"
-      description="How cancellations and refunds will work when ResuMate introduces paid plans."
+      description="How cancellations and refunds work for ResuMate paid plans."
       summary={
         <p>
-          Cancel anytime to stop future renewals. Once paid plans launch, first purchases will have
+          Cancel anytime to stop future renewals. First purchases have
           a 14-day refund window, and renewal charges will have a 7-day refund window. Mandatory
           local consumer rights always apply.
         </p>
@@ -15,8 +15,7 @@ export function Refund() {
     >
       <LegalSection title="1. When this policy applies">
         <p>
-          ResuMate is currently available without a paid subscription. This policy will apply when
-          ResuMate begins offering paid plans or one-time digital purchases. The checkout page and
+          This policy applies to ResuMate paid plans and one-time digital purchases. The checkout page and
           receipt may include product-specific terms; if they are more favorable to you, those terms
           control.
         </p>

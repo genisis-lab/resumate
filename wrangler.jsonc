@@ -18,7 +18,7 @@
   "vars": {
     "APP_URL": "https://resume.builtwai.com",
     "EMAIL_FROM": "ResuMate <verification@contact.builtwai.com>",
-    "WHOP_CHECKOUT_ENABLED": "false",
+    "WHOP_CHECKOUT_ENABLED": "true",
     "WHOP_BUSINESS_ID": "biz_XNbFaV2vqlnbDu",
     "WHOP_RESUMATE_PRODUCT_ID": "prod_ohtoVdNv8Bcr0",
     "WHOP_RESUMATE_SPRINT_PLAN_ID": "plan_GxGtsMlfd53Xw",
