@@ -16,6 +16,8 @@ import { fromJsonResume } from "../lib/jsonResume"
 import { Density } from "../types/resume"
 import { navigate } from "../router"
 import { BottomSheet } from "../components/BottomSheet"
+import type { PlanId } from "../lib/billing"
+import { canUseTemplate, consumeUsage, usageSnapshot } from "../lib/usage"
 
 const TEMPLATES: { id: TemplateId; label: string }[] = [
   { id: "modern", label: "Modern" },
@@ -56,6 +58,7 @@ export function Builder({
   redo,
   canUndo,
   canRedo,
+  plan,
 }: {
   resume: Resume
   setResume: (r: Resume | ((p: Resume) => Resume)) => void
@@ -65,6 +68,7 @@ export function Builder({
   redo: () => void
   canUndo: boolean
   canRedo: boolean
+  plan: PlanId
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const resumeFileRef = useRef<HTMLInputElement>(null)
@@ -76,11 +80,13 @@ export function Builder({
   const [mobileSheet, setMobileSheet] = useState<"tools" | "export" | null>(null)
   const [pageCount, setPageCount] = useState(1)
   const [fitting, setFitting] = useState(false)
+  const [, refreshUsage] = useState(0)
   const previewRef = useRef<HTMLDivElement>(null)
   const store = loadStore()
   const comp = useMemo(() => completeness(resume), [resume])
   const flags = useMemo(() => qualityFlags(resume), [resume])
   const proofIssues = useMemo(() => (showProof ? findProofIssues(resume) : []), [showProof, resume])
+  const exportUsage = usageSnapshot(plan, "documentExports")
 
   const setSettings = (patch: Partial<Resume["settings"]>) =>
     setResume((r) => ({ ...r, settings: { ...r.settings, ...patch } }))
@@ -95,14 +101,14 @@ export function Builder({
         let next: Resume
         if (data && data.contact && data.settings) {
           // Native ResuMate export.
-          next = normalizeResume({ ...data, id: createEmptyResume().id })
+          next = normalizeResume({ ...data, id: plan === "free" ? resume.id : createEmptyResume().id })
         } else if (data && (data.basics || data.work || data.$schema)) {
           // JSON Resume open standard.
           next = fromJsonResume(data)
         } else {
           throw new Error("unrecognized")
         }
-        replaceResume(next)
+        replaceResume(plan === "free" ? { ...next, id: resume.id, name: resume.name } : next)
       } catch {
         alert("That file could not be read. Import a ResuMate JSON export or a JSON Resume file.")
       }
@@ -117,7 +123,7 @@ export function Builder({
     setImporting(true)
     try {
       const next = await importResumeFromFile(file)
-      replaceResume(next)
+      replaceResume(plan === "free" ? { ...next, id: resume.id, name: resume.name } : next)
     } catch (err) {
       alert(
         "Couldn't import that file. Please upload a PDF or a plain-text (.txt) resume, or use Import JSON.\n\n" +
@@ -133,9 +139,9 @@ export function Builder({
     const file = e.target.files?.[0]
     if (!file) return
     try {
-      const count = await importAllJSON(file)
+      const count = await importAllJSON(file, plan === "free" ? { replaceSingleId: resume.id } : undefined)
       const s = loadStore()
-      switchResume(s.resumes[0].id)
+      switchResume(plan === "free" ? resume.id : s.resumes[0].id)
       alert(`Restored ${count} resume${count === 1 ? "" : "s"} from your backup.`)
     } catch (err) {
       alert(err instanceof Error ? err.message : "Could not restore that backup.")
@@ -145,11 +151,20 @@ export function Builder({
   }
 
   function onDuplicate() {
+    if (plan === "free") {
+      alert("The Free plan supports 1 active resume. Upgrade to create additional versions.")
+      return
+    }
     const copy = duplicateResume(resume.id)
     if (copy) switchResume(copy.id)
   }
 
   function onNewResume() {
+    if (plan === "free") {
+      alert("The Free plan supports 1 active resume. Upgrade to create another resume.")
+      setMobileSheet(null)
+      return
+    }
     replaceResume(createEmptyResume("Untitled"))
     setMobileSheet(null)
   }
@@ -183,6 +198,22 @@ export function Builder({
   function runMobileExport(action: () => void) {
     setMobileSheet(null)
     window.setTimeout(action, 0)
+  }
+
+  function allowDocumentExport(): boolean {
+    const quota = consumeUsage(plan, "documentExports")
+    refreshUsage((value) => value + 1)
+    if (quota.allowed) return true
+    alert("The Free plan includes 3 PDF or Word exports each month. Upgrade for unlimited exports.")
+    return false
+  }
+
+  function runPdfExport() {
+    if (allowDocumentExport()) exportPdf(resume.contact.fullName || resume.name)
+  }
+
+  function runWordExport() {
+    if (allowDocumentExport()) exportDocx(resume)
   }
 
   // Measure how many printed pages the preview spans.
@@ -263,10 +294,11 @@ export function Builder({
           {TEMPLATES.map((t) => (
             <button
               key={t.id}
-              className={`chip ${resume.settings.template === t.id ? "active" : ""}`}
-              onClick={() => setSettings({ template: t.id })}
+              className={`chip ${resume.settings.template === t.id ? "active" : ""}${canUseTemplate(plan, t.id) ? "" : " locked"}`}
+              onClick={() => canUseTemplate(plan, t.id) ? setSettings({ template: t.id }) : navigate("/pricing")}
+              title={canUseTemplate(plan, t.id) ? t.label : `${t.label} requires Career Sprint or Pro`}
             >
-              {t.label}
+              {t.label}{canUseTemplate(plan, t.id) ? "" : " · Paid"}
             </button>
           ))}
         </div>
@@ -333,8 +365,8 @@ export function Builder({
           <button className="btn-ghost small" onClick={() => backupFileRef.current?.click()} title="Restore resumes from a backup file">Restore</button>
           <input ref={backupFileRef} type="file" accept="application/json,.json" hidden onChange={onRestoreBackup} />
           <button className="btn-secondary small" onClick={() => navigate("/analyze")}>✨ ATS Check</button>
-          <button className="btn-secondary small" onClick={() => exportDocx(resume)}>⬇ Word</button>
-          <button className="btn-primary small" onClick={() => exportPdf()}>⬇ PDF</button>
+          <button className="btn-secondary small" onClick={runWordExport} title={plan === "free" ? `${exportUsage.remaining} of 3 Free exports remain this month` : "Export an editable Word file"}>⬇ Word</button>
+          <button className="btn-primary small" onClick={runPdfExport} title={plan === "free" ? `${exportUsage.remaining} of 3 Free exports remain this month` : "Export a print-ready PDF"}>⬇ PDF</button>
         </div>
       </div>
 
@@ -412,12 +444,12 @@ export function Builder({
       </div>
       {showShare && <ShareModal resume={resume} onClose={() => setShowShare(false)} />}
       <BottomSheet open={mobileSheet === "export"} title="Export resume" onClose={() => setMobileSheet(null)}>
-        <p className="sheet-intro">Choose the file you need. Your resume stays in this browser.</p>
+        <p className="sheet-intro">Choose the file you need. Your resume stays in this browser.{plan === "free" ? ` ${exportUsage.remaining} of 3 PDF or Word exports remain this month.` : ""}</p>
         <div className="export-primary-grid">
-          <button className="export-choice primary" type="button" onClick={() => runMobileExport(exportPdf)}>
+          <button className="export-choice primary" type="button" onClick={() => runMobileExport(runPdfExport)}>
             <strong>PDF</strong><span>Print-ready and ATS-friendly</span>
           </button>
-          <button className="export-choice" type="button" onClick={() => runMobileExport(() => exportDocx(resume))}>
+          <button className="export-choice" type="button" onClick={() => runMobileExport(runWordExport)}>
             <strong>Word</strong><span>Editable .docx file</span>
           </button>
         </div>
@@ -448,7 +480,7 @@ export function Builder({
           <h3 id="design-tools-title">Design</h3>
           <div className="mobile-template-grid">
             {TEMPLATES.map((template) => (
-              <button key={template.id} type="button" className={`chip ${resume.settings.template === template.id ? "active" : ""}`} onClick={() => setSettings({ template: template.id })}>{template.label}</button>
+              <button key={template.id} type="button" className={`chip ${resume.settings.template === template.id ? "active" : ""}${canUseTemplate(plan, template.id) ? "" : " locked"}`} onClick={() => canUseTemplate(plan, template.id) ? setSettings({ template: template.id }) : navigate("/pricing")}>{template.label}{canUseTemplate(plan, template.id) ? "" : " · Paid"}</button>
             ))}
           </div>
           <div className="mobile-setting-row">

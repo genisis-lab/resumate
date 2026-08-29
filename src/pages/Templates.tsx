@@ -2,6 +2,8 @@ import { Resume, TemplateId } from "../types/resume"
 import { ResumePreview } from "../templates/ResumePreview"
 import { createSampleResume } from "../data/sample"
 import { navigate } from "../router"
+import type { PlanId } from "../lib/billing"
+import { canUseTemplate } from "../lib/usage"
 
 const TEMPLATES: { id: TemplateId; label: string; desc: string }[] = [
   { id: "modern", label: "Modern", desc: "Polished with a subtle accent color. Great all-rounder." },
@@ -18,12 +20,18 @@ const TEMPLATES: { id: TemplateId; label: string; desc: string }[] = [
 export function Templates({
   resume,
   setResume,
+  plan,
 }: {
   resume: Resume
   setResume: (r: Resume | ((p: Resume) => Resume)) => void
+  plan: PlanId
 }) {
   const demo = createSampleResume()
   function choose(id: TemplateId) {
+    if (!canUseTemplate(plan, id)) {
+      navigate("/pricing")
+      return
+    }
     setResume((r) => ({ ...r, settings: { ...r.settings, template: id } }))
     navigate("/builder")
   }
@@ -37,8 +45,9 @@ export function Templates({
       <div className="template-gallery">
         {TEMPLATES.map((t) => {
           const preview = { ...demo, settings: { ...demo.settings, template: t.id, accent: resume.settings.accent } }
+          const available = canUseTemplate(plan, t.id)
           return (
-            <div className={`template-card ${resume.settings.template === t.id ? "active" : ""}`} key={t.id}>
+            <div className={`template-card ${resume.settings.template === t.id ? "active" : ""}${available ? "" : " locked"}`} key={t.id}>
               <div className="template-thumb">
                 <div className="thumb-scale">
                   <ResumePreview resume={preview} />
@@ -47,7 +56,7 @@ export function Templates({
               <div className="template-info">
                 <h3>{t.label}{resume.settings.template === t.id && <span className="current-tag">Current</span>}</h3>
                 <p>{t.desc}</p>
-                <button className="btn-primary small" onClick={() => choose(t.id)}>Use this template</button>
+                <button className={available ? "btn-primary small" : "btn-ghost small"} onClick={() => choose(t.id)}>{available ? "Use this template" : "Available on paid plans"}</button>
               </div>
             </div>
           )

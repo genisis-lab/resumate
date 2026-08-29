@@ -6,6 +6,8 @@ import { listJDs, saveJD, deleteJD, SavedJD } from "../lib/jdLibrary"
 import { ResumePreview } from "../templates/ResumePreview"
 import { navigate } from "../router"
 import { importResumeFromFile } from "../lib/importResume"
+import type { PlanId } from "../lib/billing"
+import { consumeUsage, usageSnapshot } from "../lib/usage"
 
 function ScoreGauge({ score }: { score: number }) {
   const tone = score >= 80 ? "good" : score >= 60 ? "ok" : "bad"
@@ -29,9 +31,11 @@ function ScoreGauge({ score }: { score: number }) {
 export function Analyze({
   resume,
   setResume,
+  plan,
 }: {
   resume: Resume
   setResume: (r: Resume | ((p: Resume) => Resume)) => void
+  plan: PlanId
 }) {
   const [jd, setJd] = useState(() => {
     try {
@@ -54,7 +58,9 @@ export function Analyze({
   const [issues, setIssues] = useState<string[] | null>(null)
   const [proofErr, setProofErr] = useState("")
   const [jds, setJds] = useState<SavedJD[]>(() => listJDs())
+  const [, refreshUsage] = useState(0)
   const analysisResume = uploadedResume || resume
+  const localAtsUsage = usageSnapshot(plan, "localAtsChecks")
 
   async function onResumeFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -115,6 +121,14 @@ export function Analyze({
     if (jd.trim().length < 80) {
       setError("Paste at least 80 characters from the job description for a useful comparison.")
       return
+    }
+    if (!useAi) {
+      const quota = consumeUsage(plan, "localAtsChecks")
+      refreshUsage((value) => value + 1)
+      if (!quota.allowed) {
+        setError("The Free plan includes 5 local ATS checks each month. Upgrade for expanded checks.")
+        return
+      }
     }
     setError("")
     setLoading(true)
@@ -275,7 +289,7 @@ export function Analyze({
             </div>
           )}
           {error && <p className="error">{error}</p>}
-          <p className="hint-text">The local job match and uploaded file stay in this browser. Optional AI actions send only the selected resume and job-description text through ResuMate's validated server boundary and require a configured provider; they do not silently replace the local result.</p>
+          <p className="hint-text">The local job match and uploaded file stay in this browser.{plan === "free" ? ` ${localAtsUsage.remaining} of 5 Free local checks remain this month.` : ""} Optional AI actions send only the selected resume and job-description text through ResuMate's validated server boundary and require a configured provider; they do not silently replace the local result.</p>
         </div>
 
         <div className="result-pane">

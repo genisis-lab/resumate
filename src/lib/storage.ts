@@ -179,7 +179,7 @@ export function exportAllJSON(): void {
 }
 
 // ---- Restore: merge a full backup produced by exportAllJSON ----
-export async function importAllJSON(file: File): Promise<number> {
+export async function importAllJSON(file: File, options?: { replaceSingleId?: string }): Promise<number> {
   const text = await file.text()
   let parsed: unknown
   try {
@@ -192,6 +192,14 @@ export async function importAllJSON(file: File): Promise<number> {
     throw new Error("This doesn't look like a ResuMate backup (no resumes found).")
   }
   const store = loadStore()
+  if (options?.replaceSingleId) {
+    const restored = normalizeResume({ ...incoming[0], id: options.replaceSingleId })
+    const index = store.resumes.findIndex((resume) => resume.id === options.replaceSingleId)
+    if (index >= 0) store.resumes[index] = restored
+    else store.resumes.push(restored)
+    persistStore(store)
+    return 1
+  }
   const byId = new Map(store.resumes.map((r) => [r.id, r]))
   for (const r of incoming) {
     if (r && typeof r.id === "string") byId.set(r.id, r as Resume)
