@@ -1,8 +1,10 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
+import { BILLING_STATE, beginUpgrade, type PlanId } from "../lib/billing"
 import { navigate } from "../router"
 
 const PLANS = [
   {
+    id: "free" as PlanId,
     name: "Free",
     price: "$0",
     cadence: "forever",
@@ -12,6 +14,7 @@ const PLANS = [
     onClick: () => navigate("/signup"),
   },
   {
+    id: "sprint" as PlanId,
     name: "Career Sprint",
     price: "$15",
     cadence: "30 days · no renewal",
@@ -19,7 +22,7 @@ const PLANS = [
     features: [
       "5 job-specific resume versions",
       "Expanded local ATS checks",
-      "40 hosted AI actions when available",
+      "40 hosted AI actions during the 30-day pass",
       "All templates and unlimited PDF/Word exports",
       "Interview tools and 30-day cloud sync when available",
     ],
@@ -28,6 +31,7 @@ const PLANS = [
     featured: true,
   },
   {
+    id: "pro" as PlanId,
     name: "Pro",
     price: "$24",
     cadence: "per month",
@@ -35,7 +39,7 @@ const PLANS = [
     features: [
       "Unlimited resumes, jobs, and applications",
       "Hosted parser testing when available",
-      "150 hosted AI actions each month when available",
+      "150 hosted AI actions each month",
       "Version history and multi-device sync when available",
       "Priority support and 25 active share links",
     ],
@@ -49,7 +53,7 @@ const COMPARISON = [
   { feature: "Templates", free: "3 ATS-safe", sprint: "All 9", pro: "All 9" },
   { feature: "PDF or Word exports", free: "3 / month", sprint: "Unlimited", pro: "Unlimited" },
   { feature: "Local ATS checks", free: "5 / month", sprint: "Expanded", pro: "Expanded" },
-  { feature: "Hosted AI actions", free: "—", sprint: "40 planned", pro: "150 planned" },
+  { feature: "Hosted AI actions", free: "—", sprint: "40 at launch", pro: "150 / month at launch" },
   { feature: "Cloud sync", free: "—", sprint: "30 days planned", pro: "Planned" },
   { feature: "Version history", free: "Current", sprint: "30 days planned", pro: "1 year planned" },
 ]
@@ -73,7 +77,7 @@ const FAQS = [
   },
   {
     question: "What counts as an AI action?",
-    answer: "A focused request such as a match report, bullet rewrite, tailored summary, or proofreading pass generally uses one action. Larger outputs such as a cover letter, interview pack, full tailoring pass, or application kit may use more. The exact cost will be shown before you run it.",
+    answer: "One hosted request uses one action at launch, whether it is a match report, bullet rewrite, tailored summary, proofreading pass, cover letter, or interview pack. ResuMate will disclose any future change before you run a request.",
   },
   {
     question: "What happens when I reach a limit?",
@@ -90,6 +94,8 @@ const FAQS = [
 ]
 
 export function Pricing() {
+  const [checkoutPlan, setCheckoutPlan] = useState<PlanId | null>(null)
+  const [checkoutError, setCheckoutError] = useState("")
   useEffect(() => {
     const script = document.createElement("script")
     script.id = "pricing-faq-schema"
@@ -106,6 +112,17 @@ export function Pricing() {
     document.head.appendChild(script)
     return () => script.remove()
   }, [])
+
+  async function upgrade(plan: "sprint" | "pro") {
+    setCheckoutError("")
+    setCheckoutPlan(plan)
+    try {
+      await beginUpgrade(plan)
+    } catch (error) {
+      setCheckoutError(error instanceof Error ? error.message : "Checkout is temporarily unavailable.")
+      setCheckoutPlan(null)
+    }
+  }
 
   return (
     <div className="pricing-page">
@@ -133,7 +150,11 @@ export function Pricing() {
             <ul>
               {plan.features.map((feature) => <li key={feature}>{feature}</li>)}
             </ul>
-            {plan.href ? (
+            {plan.id !== "free" && BILLING_STATE.checkoutEnabled ? (
+              <button className={plan.featured ? "btn-primary pricing-action" : "btn-ghost pricing-action"} disabled={checkoutPlan !== null} type="button" onClick={() => void upgrade(plan.id === "sprint" ? "sprint" : "pro")}>
+                {checkoutPlan === plan.id ? "Opening secure checkout…" : plan.id === "sprint" ? "Start Career Sprint" : "Upgrade to Pro"}
+              </button>
+            ) : plan.href ? (
               <a className={plan.featured ? "btn-primary pricing-action" : "btn-ghost pricing-action"} href={plan.href}>{plan.action}</a>
             ) : (
               <button className="btn-ghost pricing-action" type="button" onClick={plan.onClick}>{plan.action}</button>
@@ -141,6 +162,8 @@ export function Pricing() {
           </article>
         ))}
       </section>
+
+      {checkoutError && <p className="pricing-honesty error" role="alert">{checkoutError}</p>}
 
       <p className="pricing-honesty">
         Paid accounts and checkout are not live. These are target launch prices and limits, not an

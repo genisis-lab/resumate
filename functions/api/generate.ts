@@ -2,17 +2,21 @@ import {
   type AiEnv,
   type AiSettings,
   type ClientAiOptions,
+  type JsonSchema,
   aiSettings,
   callAI,
   enforceAiQuota,
   enforcePostAndOrigin,
+  hasOnlyKeys,
   json,
-  limitedString,
-  limitedStrings,
+  parseJsonObject,
   readBoundedJson,
   requestError,
+  strictString,
+  strictStringArray,
   text,
   validString,
+  withActionReservation,
 } from "../../server/ai-proxy"
 
 type Task =
@@ -51,14 +55,40 @@ interface GenerateBody extends ClientAiOptions {
   tone?: string
 }
 
-function parseJson(output: string): Record<string, unknown> | null {
-  try {
-    const parsed = JSON.parse(output)
-    return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : null
-  } catch {
-    return null
-  }
+function objectSchema(properties: Record<string, unknown>, required: string[]): JsonSchema {
+  return { type: "object", additionalProperties: false, properties, required }
 }
+
+const BULLETS_SCHEMA = objectSchema({
+  bullets: { type: "array", minItems: 1, maxItems: 30, items: { type: "string", minLength: 1, maxLength: 2_000 } },
+}, ["bullets"])
+const SUMMARY_SCHEMA = objectSchema({
+  summary: { type: "string", minLength: 1, maxLength: 2_000 },
+}, ["summary"])
+const TAILOR_SCHEMA = objectSchema({
+  summary: { type: "string", minLength: 1, maxLength: 2_000 },
+  missingKeywords: { type: "array", maxItems: 12, items: { type: "string", minLength: 1, maxLength: 120 } },
+  suggestions: { type: "array", maxItems: 8, items: { type: "string", minLength: 1, maxLength: 500 } },
+}, ["summary", "missingKeywords", "suggestions"])
+const ISSUES_SCHEMA = objectSchema({
+  issues: { type: "array", maxItems: 12, items: { type: "string", minLength: 1, maxLength: 500 } },
+}, ["issues"])
+const INTERVIEW_SCHEMA = objectSchema({
+  questions: {
+    type: "array",
+    minItems: 1,
+    maxItems: 10,
+    items: {
+      type: "object",
+      additionalProperties: false,
+      required: ["question", "tip"],
+      properties: {
+        question: { type: "string", minLength: 1, maxLength: 500 },
+        tip: { type: "string", minLength: 1, maxLength: 500 },
+      },
+    },
+  },
+}, ["questions"])
 
 function validateBody(body: GenerateBody): Response | null {
   if (!body || typeof body !== "object") return text("Invalid request body", 400)
@@ -77,6 +107,11 @@ function validateBody(body: GenerateBody): Response | null {
     || body.bullets.length > 30
     || body.bullets.some((bullet) => !validString(bullet, 2_000))
   )) return text("Invalid bullets", 400)
+  const combinedCharacters = (body.resumeText?.length || 0)
+    + (body.jobDescription?.length || 0)
+    + (body.currentSummary?.length || 0)
+    + (body.bullets || []).reduce((total, bullet) => total + bullet.length, 0)
+  if (combinedCharacters > MAX_CHARS) return text("Input too large", 413)
   return null
 }
 
@@ -92,11 +127,13 @@ async function rewriteBullets(body: GenerateBody, settings: AiSettings): Promise
   const output = await callAI(settings, [
     { role: "system", content: system },
     { role: "user", content: `${introduction}${job}Bullets:\n${bullets.map((bullet, index) => `${index + 1}. ${bullet}`).join("\n")}` },
-  ], true)
-  const parsed = parseJson(output)
-  if (!parsed) return text("AI returned malformed JSON", 502)
-  const result = limitedStrings(parsed.bullets, bullets.length, 2_000)
-  return json({ bullets: result.length === bullets.length ? result : bullets })
+  ], true, 0.4, BULLETS_SCHEMA)
+  const parsed = parseJsonObject(output)
+  if (!parsed || !hasOnlyKeys(parsed, ["bullets"]) || !strictStringArray(parsed.bullets, bullets.length, 2_000)
+    || parsed.bullets.length !== bullets.length) {
+    return text("AI returned an invalid structured response", 502)
+  }
+  return json({ bullets: parsed.bullets.map((bullet) => bullet.trim()) })
 }
 
 async function generateSummary(body: GenerateBody, settings: AiSettings): Promise<Response> {
@@ -109,56 +146,67 @@ async function generateSummary(body: GenerateBody, settings: AiSettings): Promis
   const user = tailored
     ? `TARGET JOB:\n${body.jobDescription}\n\nCURRENT SUMMARY:\n${body.currentSummary || "(none)"}\n\nRESUME:\n${body.resumeText}`
     : `CURRENT SUMMARY:\n${body.currentSummary || "(none)"}\n\nRESUME:\n${body.resumeText}`
-  const parsed = parseJson(await callAI(settings, [
+  const parsed = parseJsonObject(await callAI(settings, [
     { role: "system", content: system },
     { role: "user", content: user },
-  ], true))
-  if (!parsed) return text("AI returned malformed JSON", 502)
-  return json({ summary: limitedString(parsed.summary, 2_000) })
+  ], true, 0.4, SUMMARY_SCHEMA))
+  if (!parsed || !hasOnlyKeys(parsed, ["summary"]) || !strictString(parsed.summary, 2_000)) {
+    return text("AI returned an invalid structured response", 502)
+  }
+  return json({ summary: parsed.summary.trim() })
 }
 
 async function tailorResume(body: GenerateBody, settings: AiSettings): Promise<Response> {
   if (!body.resumeText?.trim() || !body.jobDescription?.trim()) return text("Missing resumeText or jobDescription", 400)
   const system = `You are an expert resume coach. Given a resume and target job, produce a tailored 2-3 sentence summary grounded only in the resume, important missing keywords, and concrete high-impact suggestions. Never invent experience or metrics. Return STRICT JSON: { "summary": string, "missingKeywords": string[], "suggestions": string[] }.`
-  const parsed = parseJson(await callAI(settings, [
+  const parsed = parseJsonObject(await callAI(settings, [
     { role: "system", content: system },
     { role: "user", content: `TARGET JOB:\n${body.jobDescription}\n\nCURRENT SUMMARY:\n${body.currentSummary || "(none)"}\n\nRESUME:\n${body.resumeText}` },
-  ], true))
-  if (!parsed) return text("AI returned malformed JSON", 502)
+  ], true, 0.4, TAILOR_SCHEMA))
+  if (!parsed || !hasOnlyKeys(parsed, ["summary", "missingKeywords", "suggestions"])
+    || !strictString(parsed.summary, 2_000)
+    || !strictStringArray(parsed.missingKeywords, 12, 120)
+    || !strictStringArray(parsed.suggestions, 8, 500)) {
+    return text("AI returned an invalid structured response", 502)
+  }
   return json({
-    summary: limitedString(parsed.summary, 2_000),
-    missingKeywords: limitedStrings(parsed.missingKeywords, 12, 120),
-    suggestions: limitedStrings(parsed.suggestions, 8, 500),
+    summary: parsed.summary.trim(),
+    missingKeywords: parsed.missingKeywords.map((item) => item.trim()),
+    suggestions: parsed.suggestions.map((item) => item.trim()),
   })
 }
 
 async function proofread(body: GenerateBody, settings: AiSettings): Promise<Response> {
   if (!body.resumeText?.trim()) return text("Missing resumeText", 400)
   const system = `You are a meticulous resume editor. Find concrete grammar, spelling, tense, punctuation, and tone issues. Be specific and quote the problem text. Do not invent content or rewrite the whole resume. Return STRICT JSON: { "issues": string[] } with up to 12 short items.`
-  const parsed = parseJson(await callAI(settings, [
+  const parsed = parseJsonObject(await callAI(settings, [
     { role: "system", content: system },
     { role: "user", content: `RESUME:\n${body.resumeText}` },
-  ], true))
-  if (!parsed) return text("AI returned malformed JSON", 502)
-  return json({ issues: limitedStrings(parsed.issues, 12, 500) })
+  ], true, 0.4, ISSUES_SCHEMA))
+  if (!parsed || !hasOnlyKeys(parsed, ["issues"]) || !strictStringArray(parsed.issues, 12, 500)) {
+    return text("AI returned an invalid structured response", 502)
+  }
+  return json({ issues: parsed.issues.map((item) => item.trim()) })
 }
 
 async function interview(body: GenerateBody, settings: AiSettings): Promise<Response> {
   if (!body.resumeText?.trim() || !body.jobDescription?.trim()) return text("Missing resumeText or jobDescription", 400)
   const system = `You are an experienced interviewer. Generate likely behavioral and role-specific questions based on the resume and target job. Add a one-sentence answer tip grounded in the candidate's actual background. Return STRICT JSON: { "questions": { "question": string, "tip": string }[] } with about 8 items.`
-  const parsed = parseJson(await callAI(settings, [
+  const parsed = parseJsonObject(await callAI(settings, [
     { role: "system", content: system },
     { role: "user", content: `TARGET JOB:\n${body.jobDescription}\n\nRESUME:\n${body.resumeText}` },
-  ], true))
-  if (!parsed) return text("AI returned malformed JSON", 502)
-  const questions = Array.isArray(parsed.questions)
-    ? parsed.questions.flatMap((candidate) => {
-        if (!candidate || typeof candidate !== "object") return []
-        const item = candidate as Record<string, unknown>
-        const question = limitedString(item.question, 500)
-        return question ? [{ question, tip: limitedString(item.tip, 500) }] : []
-      }).slice(0, 10)
-    : []
+  ], true, 0.4, INTERVIEW_SCHEMA))
+  if (!parsed || !hasOnlyKeys(parsed, ["questions"]) || !Array.isArray(parsed.questions)
+    || parsed.questions.length < 1 || parsed.questions.length > 10) {
+    return text("AI returned an invalid structured response", 502)
+  }
+  const questions = parsed.questions.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return []
+    const item = candidate as Record<string, unknown>
+    if (!hasOnlyKeys(item, ["question", "tip"]) || !strictString(item.question, 500) || !strictString(item.tip, 500)) return []
+    return [{ question: item.question.trim(), tip: item.tip.trim() }]
+  })
+  if (questions.length !== parsed.questions.length) return text("AI returned an invalid structured response", 502)
   return json({ questions })
 }
 
@@ -173,7 +221,8 @@ async function plainTextDocument(body: GenerateBody, settings: AiSettings): Prom
     { role: "system", content: system },
     { role: "user", content: `TARGET JOB:\n${body.jobDescription}\n\nRESUME:\n${body.resumeText}` },
   ], false)
-  return json({ text: limitedString(output, 5_000) })
+  if (!strictString(output, 5_000)) return text("AI returned an invalid response", 502)
+  return json({ text: output.trim() })
 }
 
 async function handle(request: Request, env: AiEnv): Promise<Response> {
@@ -185,16 +234,18 @@ async function handle(request: Request, env: AiEnv): Promise<Response> {
     if (invalid) return invalid
     const settings = aiSettings(body, env)
     if (!settings) return text(body.clientKey ? "Unsupported AI provider" : "AI not configured", body.clientKey ? 400 : 501)
-    const quotaResponse = await enforceAiQuota(request, env, `generate:${body.task}`, Boolean(body.clientKey))
-    if (quotaResponse) return quotaResponse
+    const quota = await enforceAiQuota(request, env, `generate:${body.task}`, Boolean(body.clientKey))
+    if (quota instanceof Response) return quota
 
-    if (body.task === "rewrite" || body.task === "quantify") return await rewriteBullets(body, settings)
-    if (body.task === "summary" || body.task === "summary_scratch") return await generateSummary(body, settings)
-    if (body.task === "tailor") return await tailorResume(body, settings)
-    if (body.task === "proofread") return await proofread(body, settings)
-    if (body.task === "interview") return await interview(body, settings)
-    if (body.task === "cover_letter" || body.task === "recruiter_email") return await plainTextDocument(body, settings)
-    return text("Unknown task", 400)
+    return await withActionReservation(quota, async () => {
+      if (body.task === "rewrite" || body.task === "quantify") return await rewriteBullets(body, settings)
+      if (body.task === "summary" || body.task === "summary_scratch") return await generateSummary(body, settings)
+      if (body.task === "tailor") return await tailorResume(body, settings)
+      if (body.task === "proofread") return await proofread(body, settings)
+      if (body.task === "interview") return await interview(body, settings)
+      if (body.task === "cover_letter" || body.task === "recruiter_email") return await plainTextDocument(body, settings)
+      return text("Unknown task", 400)
+    })
   } catch (error) {
     return requestError(error)
   }

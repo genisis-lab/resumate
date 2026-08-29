@@ -5,13 +5,16 @@ import {
   callAI,
   enforceAiQuota,
   enforcePostAndOrigin,
+  hasOnlyKeys,
   json,
-  limitedString,
-  limitedStrings,
+  parseJsonObject,
   readBoundedJson,
   requestError,
+  strictString,
+  strictStringArray,
   text,
   validString,
+  withActionReservation,
 } from "../../server/ai-proxy"
 
 interface AnalyzeBody extends ClientAiOptions {
@@ -33,29 +36,52 @@ Be specific and actionable. Prioritize the highest-impact changes. Limit keyword
 
 const MAX_CHARS = 24_000
 
-function normalizeResult(value: unknown) {
-  const data = value && typeof value === "object" ? value as Record<string, unknown> : {}
-  const numericScore = typeof data.score === "number" ? data.score : Number(data.score)
-  const score = Number.isFinite(numericScore) ? Math.max(0, Math.min(100, Math.round(numericScore))) : 0
-  const suggestions = Array.isArray(data.suggestions)
-    ? data.suggestions.flatMap((candidate) => {
-        if (!candidate || typeof candidate !== "object") return []
-        const item = candidate as Record<string, unknown>
-        const severity = item.severity === "high" || item.severity === "medium" ? item.severity : "low"
-        const suggestion = {
-          section: limitedString(item.section, 80) || "General",
-          severity,
-          text: limitedString(item.text, 500),
-        }
-        return suggestion.text ? [suggestion] : []
-      }).slice(0, 6)
-    : []
+const ANALYSIS_SCHEMA = {
+  type: "object" as const,
+  additionalProperties: false as const,
+  required: ["score", "matchedKeywords", "missingKeywords", "suggestions", "summary"],
+  properties: {
+    score: { type: "number", minimum: 0, maximum: 100 },
+    matchedKeywords: { type: "array", maxItems: 15, items: { type: "string", maxLength: 120 } },
+    missingKeywords: { type: "array", maxItems: 15, items: { type: "string", maxLength: 120 } },
+    suggestions: {
+      type: "array",
+      maxItems: 6,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["section", "severity", "text"],
+        properties: {
+          section: { type: "string", minLength: 1, maxLength: 80 },
+          severity: { type: "string", enum: ["high", "medium", "low"] },
+          text: { type: "string", minLength: 1, maxLength: 500 },
+        },
+      },
+    },
+    summary: { type: "string", minLength: 1, maxLength: 1_000 },
+  },
+}
+
+function strictResult(data: Record<string, unknown>) {
+  if (!hasOnlyKeys(data, ANALYSIS_SCHEMA.required)) return null
+  if (typeof data.score !== "number" || !Number.isFinite(data.score) || data.score < 0 || data.score > 100) return null
+  if (!strictStringArray(data.matchedKeywords, 15, 120) || !strictStringArray(data.missingKeywords, 15, 120)) return null
+  if (!strictString(data.summary, 1_000) || !Array.isArray(data.suggestions) || data.suggestions.length > 6) return null
+  const suggestions = data.suggestions.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return []
+    const item = candidate as Record<string, unknown>
+    if (!hasOnlyKeys(item, ["section", "severity", "text"])) return []
+    if (!strictString(item.section, 80) || !strictString(item.text, 500)) return []
+    if (item.severity !== "high" && item.severity !== "medium" && item.severity !== "low") return []
+    return [{ section: item.section.trim(), severity: item.severity, text: item.text.trim() }]
+  })
+  if (suggestions.length !== data.suggestions.length) return null
   return {
-    score,
-    matchedKeywords: limitedStrings(data.matchedKeywords, 15, 120),
-    missingKeywords: limitedStrings(data.missingKeywords, 15, 120),
+    score: Math.round(data.score),
+    matchedKeywords: data.matchedKeywords.map((item) => item.trim()),
+    missingKeywords: data.missingKeywords.map((item) => item.trim()),
     suggestions,
-    summary: limitedString(data.summary, 1_000),
+    summary: data.summary.trim(),
   }
 }
 
@@ -74,24 +100,24 @@ async function handle(request: Request, env: AiEnv): Promise<Response> {
 
     const settings = aiSettings(body, env)
     if (!settings) return text(body.clientKey ? "Unsupported AI provider" : "AI not configured", body.clientKey ? 400 : 501)
-    const quotaResponse = await enforceAiQuota(request, env, "analyze", Boolean(body.clientKey))
-    if (quotaResponse) return quotaResponse
-    const content = await callAI(
-      settings,
-      [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: `JOB DESCRIPTION:\n${body.jobDescription}\n\n---\n\nRESUME:\n${body.resumeText}` },
-      ],
-      true,
-      0.2,
-    )
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(content)
-    } catch {
-      return text("AI returned malformed JSON", 502)
-    }
-    return json(normalizeResult(parsed))
+    const quota = await enforceAiQuota(request, env, "analyze", Boolean(body.clientKey))
+    if (quota instanceof Response) return quota
+    return await withActionReservation(quota, async () => {
+      const content = await callAI(
+        settings,
+        [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: `JOB DESCRIPTION:\n${body.jobDescription}\n\n---\n\nRESUME:\n${body.resumeText}` },
+        ],
+        true,
+        0.2,
+        ANALYSIS_SCHEMA,
+      )
+      const parsed = parseJsonObject(content)
+      const result = parsed ? strictResult(parsed) : null
+      if (!result) return text("AI returned an invalid structured response", 502)
+      return json(result)
+    })
   } catch (error) {
     return requestError(error)
   }
