@@ -1,4 +1,5 @@
 export type AiEnv = Cloudflare.Env & {
+  AI?: Ai
   AI_API_KEY?: string
   AI_API_URL?: string
   AI_MODEL?: string
@@ -10,23 +11,43 @@ export interface ClientAiOptions {
   clientModel?: string
 }
 
-export interface AiSettings {
+export interface ExternalAiSettings {
+  kind: "external"
   key: string
   url: string
   model: string
 }
 
-interface OpenAiMessage {
+export interface WorkersAiSettings {
+  kind: "workers-ai"
+  binding: Ai
+  model: typeof HOSTED_AI_MODEL
+}
+
+export type AiSettings = ExternalAiSettings | WorkersAiSettings
+
+export interface OpenAiMessage {
   role: string
   content: string
 }
 
+export interface JsonSchema {
+  type: "object"
+  additionalProperties: false
+  properties: Record<string, unknown>
+  required: string[]
+}
+
 export const MAX_REQUEST_BYTES = 128 * 1024
+export const HOSTED_AI_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8" as const
+export const HOSTED_MONTHLY_LIMITS = { sprint: 40, pro: 150 } as const
 const MAX_PROVIDER_BYTES = 512 * 1024
-const PROVIDER_TIMEOUT_MS = 30_000
+const PROVIDER_TIMEOUT_MS = 25_000
 const BYOK_RATE_LIMIT = 20
 const BYOK_RATE_WINDOW_MS = 60_000
-const HOSTED_RATE_WINDOW_MS = 24 * 60 * 60 * 1000
+const HOSTED_BURST_LIMIT = 10
+const HOSTED_BURST_WINDOW_MS = 60_000
+const STALE_RESERVATION_MS = PROVIDER_TIMEOUT_MS + 60_000
 const SESSION_COOKIE = "__Host-resumate_session"
 
 const PROVIDER_ENDPOINTS = new Set([
@@ -118,15 +139,139 @@ async function incrementQuota(env: AiEnv, key: string, windowMs: number): Promis
   ).bind(key.slice(0, 400), now, now, windowMs, now, windowMs, now).first<{ attempts: number; windowStartedAt: number }>()
 }
 
-// Persistent, provider-neutral quota enforcement. User-supplied provider keys
-// receive a short abuse limit; any future hosted allowance additionally
-// requires a verified ResuMate session and is capped by plan.
+function utcMonthKey(now = new Date()): string {
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`
+}
+
+function secondsUntilNextUtcMonth(now = new Date()): number {
+  const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)
+  return Math.max(1, Math.ceil((next - now.getTime()) / 1_000))
+}
+
+export interface HostedActionReservation {
+  readonly remaining: number
+  finalize(success: boolean): Promise<void>
+}
+
+async function reserveMonthlyAction(
+  env: AiEnv,
+  userId: string,
+  limit: number,
+): Promise<HostedActionReservation | null> {
+  const now = Date.now()
+  const periodKey = utcMonthKey(new Date(now))
+  await env.DB.prepare(
+    `UPDATE ai_action_reservations
+     SET status = 'released', finalized_at = ?
+     WHERE user_id = ? AND period_key = ? AND status = 'reserved' AND created_at < ?`,
+  ).bind(now, userId, periodKey, now - STALE_RESERVATION_MS).run()
+
+  const reservationId = crypto.randomUUID()
+  const row = await env.DB.prepare(
+    `INSERT INTO ai_action_reservations (id, user_id, period_key, status, created_at)
+     SELECT ?, ?, ?, 'reserved', ?
+     WHERE (
+       SELECT COUNT(*) FROM ai_action_reservations
+       WHERE user_id = ? AND period_key = ? AND status IN ('reserved', 'committed')
+     ) < ?
+     RETURNING (
+       SELECT COUNT(*) FROM ai_action_reservations
+       WHERE user_id = ? AND period_key = ? AND status IN ('reserved', 'committed')
+     ) AS used`,
+  ).bind(
+    reservationId, userId, periodKey, now,
+    userId, periodKey, limit,
+    userId, periodKey,
+  ).first<{ used: number }>()
+  if (!row) return null
+
+  let finalized = false
+  return {
+    remaining: Math.max(0, limit - row.used),
+    async finalize(success: boolean) {
+      if (finalized) return
+      const result = await env.DB.prepare(
+        `UPDATE ai_action_reservations
+         SET status = ?, finalized_at = ?
+         WHERE id = ? AND user_id = ? AND status = 'reserved'`,
+      ).bind(success ? "committed" : "released", Date.now(), reservationId, userId).run()
+      if (!result.success) throw new Error("AI action finalization failed")
+      finalized = true
+    },
+  }
+}
+
+export async function hostedAiUsage(request: Request, env: AiEnv): Promise<{
+  plan: "free" | "sprint" | "pro"
+  limit: number
+  used: number
+  remaining: number
+  periodKey: string
+  resetsAt: string
+} | null> {
+  const sessionToken = cookieValue(request, SESSION_COOKIE)
+  if (!sessionToken) return null
+  const user = await env.DB.prepare(
+    `SELECT u.id, u.plan
+     FROM sessions s JOIN users u ON u.id = s.user_id
+     WHERE s.token_hash = ? AND s.expires_at > ?`,
+  ).bind(await sha256(sessionToken), Date.now()).first<{ id: string; plan: "free" | "sprint" | "pro" }>()
+  if (!user) return null
+
+  const now = new Date()
+  const periodKey = utcMonthKey(now)
+  await env.DB.prepare(
+    `UPDATE ai_action_reservations
+     SET status = 'released', finalized_at = ?
+     WHERE user_id = ? AND period_key = ? AND status = 'reserved' AND created_at < ?`,
+  ).bind(now.getTime(), user.id, periodKey, now.getTime() - STALE_RESERVATION_MS).run()
+  const row = await env.DB.prepare(
+    `SELECT COUNT(*) AS used FROM ai_action_reservations
+     WHERE user_id = ? AND period_key = ? AND status IN ('reserved', 'committed')`,
+  ).bind(user.id, periodKey).first<{ used: number }>()
+  const limit = user.plan === "free" ? 0 : HOSTED_MONTHLY_LIMITS[user.plan]
+  const used = Math.max(0, Number(row?.used) || 0)
+  return {
+    plan: user.plan,
+    limit,
+    used,
+    remaining: Math.max(0, limit - used),
+    periodKey,
+    resetsAt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString(),
+  }
+}
+
+export async function withActionReservation(
+  reservation: HostedActionReservation | null,
+  operation: () => Promise<Response>,
+): Promise<Response> {
+  try {
+    const response = await operation()
+    await reservation?.finalize(response.ok)
+    if (reservation && response.ok) response.headers.set("X-Resumate-AI-Actions-Remaining", String(reservation.remaining))
+    return response
+  } catch (error) {
+    try {
+      await reservation?.finalize(false)
+    } catch (finalizeError) {
+      console.error(JSON.stringify({
+        event: "ai_action_release_failed",
+        reason: finalizeError instanceof Error ? finalizeError.name : "unknown",
+      }))
+    }
+    throw error
+  }
+}
+
+// Persistent, provider-neutral quota enforcement. BYOK requests receive a
+// short abuse limit. Hosted requests require a verified paid account, a burst
+// limit, and one atomic action reservation in the user's UTC billing month.
 export async function enforceAiQuota(
   request: Request,
   env: AiEnv,
   action: string,
   usesClientKey: boolean,
-): Promise<Response | null> {
+): Promise<Response | HostedActionReservation | null> {
   try {
     if (usesClientKey) {
       const ip = request.headers.get("CF-Connecting-IP") || "unknown"
@@ -149,14 +294,19 @@ export async function enforceAiQuota(
     if (!user) return text("Sign in with a verified account to use hosted AI", 401)
     if (!user.emailVerifiedAt) return text("Verify your email to use hosted AI", 403)
 
-    const limit = user.plan === "pro" ? 50 : user.plan === "sprint" ? 20 : 3
-    const row = await incrementQuota(env, `ai:hosted:${action}:${user.id}`, HOSTED_RATE_WINDOW_MS)
-    if (!row) return text("AI quota unavailable", 503)
-    if (row.attempts > limit) {
-      const retryAfter = Math.max(1, Math.ceil((row.windowStartedAt + HOSTED_RATE_WINDOW_MS - Date.now()) / 1000))
-      return text("Hosted AI allowance reached", 429, { "Retry-After": String(retryAfter) })
+    if (user.plan === "free") return text("Hosted AI requires Career Sprint or Pro", 403)
+
+    const burst = await incrementQuota(env, `ai:hosted:burst:${user.id}`, HOSTED_BURST_WINDOW_MS)
+    if (!burst) return text("AI quota unavailable", 503)
+    if (burst.attempts > HOSTED_BURST_LIMIT) {
+      const retryAfter = Math.max(1, Math.ceil((burst.windowStartedAt + HOSTED_BURST_WINDOW_MS - Date.now()) / 1000))
+      return text("Too many AI requests", 429, { "Retry-After": String(retryAfter) })
     }
-    return null
+
+    const limit = HOSTED_MONTHLY_LIMITS[user.plan]
+    const reservation = await reserveMonthlyAction(env, user.id, limit)
+    if (!reservation) return text("Hosted AI monthly allowance reached", 429, { "Retry-After": String(secondsUntilNextUtcMonth()) })
+    return reservation
   } catch (error) {
     console.error(JSON.stringify({ event: "ai_quota_failed", reason: error instanceof Error ? error.name : "unknown" }))
     return text("AI quota unavailable", 503)
@@ -243,13 +393,15 @@ export function aiSettings(body: ClientAiOptions, env: AiEnv): AiSettings | null
       ? body.clientModel.trim()
       : defaultModel
     if (!endpoint || !validModel(model)) return null
-    return { key: suppliedKey, url: endpoint, model }
+    return { kind: "external", key: suppliedKey, url: endpoint, model }
   }
+
+  if (env.AI) return { kind: "workers-ai", binding: env.AI, model: HOSTED_AI_MODEL }
 
   const siteKey = env.AI_API_KEY?.trim()
   const endpoint = exactProviderEndpoint(env.AI_API_URL?.trim() || "https://api.openai.com/v1/chat/completions")
   if (!siteKey || siteKey.length > 400 || /[\u0000-\u001f\u007f]/.test(siteKey) || !endpoint) return null
-  return { key: siteKey, url: endpoint, model: defaultModel }
+  return { kind: "external", key: siteKey, url: endpoint, model: defaultModel }
 }
 
 export async function callAI(
@@ -257,7 +409,27 @@ export async function callAI(
   messages: OpenAiMessage[],
   jsonMode: boolean,
   temperature = 0.4,
+  schema?: JsonSchema,
 ): Promise<string> {
+  if (settings.kind === "workers-ai") {
+    const response = await settings.binding.run(settings.model, {
+      messages,
+      temperature,
+      max_tokens: 1_600,
+      ...(jsonMode ? {
+        // Qwen's current model-specific types advertise json_schema, but the
+        // generic Workers AI compatibility list has not caught up. Use the
+        // documented json_object envelope until a bound production smoke test
+        // proves schema mode, then always enforce the stricter local validator.
+        response_format: { type: "json_object" as const },
+      } : {}),
+    }, {
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+      tags: ["resumate", "hosted"],
+    })
+    return contentFromWorkersAi(response)
+  }
+
   const payload: Record<string, unknown> = {
     model: settings.model,
     temperature,
@@ -295,6 +467,27 @@ export async function callAI(
   return content
 }
 
+function contentFromWorkersAi(value: unknown): string {
+  if (typeof value === "string") return value
+  if (!value || typeof value !== "object") throw new Error("Workers AI returned an invalid response")
+  const response = value as {
+    choices?: Array<{ message?: { content?: unknown }; text?: unknown }>
+    response?: unknown
+  }
+  const content = response.choices?.[0]?.message?.content
+    ?? response.choices?.[0]?.text
+    ?? response.response
+  if (typeof content === "string") return content
+  if (!content || typeof content !== "object" || Array.isArray(content)) {
+    throw new Error("Workers AI returned an invalid response")
+  }
+  const serialized = JSON.stringify(content)
+  if (new TextEncoder().encode(serialized).byteLength > MAX_PROVIDER_BYTES) {
+    throw new Error("Workers AI response too large")
+  }
+  return serialized
+}
+
 export function limitedString(value: unknown, maximum: number): string {
   return typeof value === "string" ? value.trim().slice(0, maximum) : ""
 }
@@ -314,4 +507,30 @@ export function requestError(error: unknown): Response {
 
 export function validString(value: unknown, maximum: number): value is string {
   return typeof value === "string" && value.length <= maximum
+}
+
+export function parseJsonObject(output: string): Record<string, unknown> | null {
+  try {
+    const parsed: unknown = JSON.parse(output)
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : null
+  } catch {
+    return null
+  }
+}
+
+export function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const allowed = new Set(keys)
+  return Object.keys(value).every((key) => allowed.has(key))
+}
+
+export function strictString(value: unknown, maximum: number): value is string {
+  return typeof value === "string" && value.trim().length > 0 && value.length <= maximum
+}
+
+export function strictStringArray(value: unknown, maximumCount: number, maximumLength: number): value is string[] {
+  return Array.isArray(value)
+    && value.length <= maximumCount
+    && value.every((item) => strictString(item, maximumLength))
 }

@@ -3,13 +3,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { onRequest as analyze } from "../functions/api/analyze"
 import { onRequest as generate } from "../functions/api/generate"
 
-function quotaDb(attempts = 1, verified = true) {
+function quotaDb(options: { attempts?: number; verified?: boolean; plan?: "free" | "sprint" | "pro"; used?: number | null } = {}) {
+  const writes: Array<{ sql: string; values: unknown[] }> = []
+  const { attempts = 1, verified = true, plan = "sprint", used = 1 } = options
   return {
+    writes,
     prepare: vi.fn((sql: string) => ({
-      bind: vi.fn(() => ({
-        first: vi.fn(async () => sql.includes("FROM sessions")
-          ? { id: "user-1", plan: "free", emailVerifiedAt: verified ? Date.now() : null }
-          : { attempts, windowStartedAt: Date.now() }),
+      bind: vi.fn((...values: unknown[]) => ({
+        first: vi.fn(async () => {
+          if (sql.includes("FROM sessions")) return { id: "user-1", plan, emailVerifiedAt: verified ? Date.now() : null }
+          if (sql.includes("INSERT INTO ai_action_reservations")) return used === null ? null : { used }
+          return { attempts, windowStartedAt: Date.now() }
+        }),
+        run: vi.fn(async () => {
+          writes.push({ sql, values })
+          return { success: true }
+        }),
       })),
     })),
   }
@@ -106,7 +115,7 @@ describe("AI proxy boundary", () => {
     const response = await invoke(analyze, request("/api/analyze", {
       resumeText: "Resume",
       jobDescription: "Job description",
-    }), { AI_API_KEY: "test-key", DB: quotaDb(1, false) })
+    }), { AI_API_KEY: "test-key", DB: quotaDb({ verified: false }) })
     expect(response.status).toBe(403)
     expect(fetchMock).not.toHaveBeenCalled()
   })
@@ -120,22 +129,22 @@ describe("AI proxy boundary", () => {
       clientKey: "user-key",
       clientUrl: "https://api.openai.com/v1/chat/completions",
       clientModel: "gpt-4o-mini",
-    }), { DB: quotaDb(21) })
+    }), { DB: quotaDb({ attempts: 21 }) })
     expect(response.status).toBe(429)
     expect(response.headers.get("Retry-After")).toBeTruthy()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it("refuses redirects, caps provider output, and normalizes analysis", async () => {
+  it("refuses redirects, caps provider output, and accepts valid analysis", async () => {
     const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
       expect(init.redirect).toBe("error")
       expect(init.signal).toBeInstanceOf(AbortSignal)
       return providerResponse(JSON.stringify({
-        score: 999,
-        matchedKeywords: Array.from({ length: 30 }, (_, index) => `match-${index}`),
+        score: 91,
+        matchedKeywords: ["TypeScript", "Cloudflare"],
         missingKeywords: ["one"],
-        suggestions: [{ section: "General", severity: "critical", text: "x".repeat(700) }],
-        summary: "s".repeat(1_500),
+        suggestions: [{ section: "General", severity: "high", text: "Add a measurable outcome." }],
+        summary: "Strong match with one important keyword gap.",
       }))
     })
     vi.stubGlobal("fetch", fetchMock)
@@ -145,11 +154,23 @@ describe("AI proxy boundary", () => {
     }))
     expect(response.status).toBe(200)
     const data = await response.json() as Record<string, unknown>
-    expect(data.score).toBe(100)
-    expect(data.matchedKeywords).toHaveLength(15)
-    expect((data.summary as string)).toHaveLength(1_000)
-    expect((data.suggestions as Array<{ severity: string; text: string }>)[0]).toMatchObject({ severity: "low" })
-    expect((data.suggestions as Array<{ text: string }>)[0].text).toHaveLength(500)
+    expect(data.score).toBe(91)
+    expect(data.matchedKeywords).toEqual(["TypeScript", "Cloudflare"])
+  })
+
+  it("rejects structured output outside the declared bounds", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => providerResponse(JSON.stringify({
+      score: 101,
+      matchedKeywords: [],
+      missingKeywords: [],
+      suggestions: [],
+      summary: "Invalid score",
+    }))))
+    const response = await invoke(analyze, request("/api/analyze", {
+      resumeText: "Resume",
+      jobDescription: "Job",
+    }))
+    expect(response.status).toBe(502)
   })
 
   it("fails closed when a provider response exceeds the streaming cap", async () => {
@@ -161,7 +182,7 @@ describe("AI proxy boundary", () => {
     expect(response.status).toBe(502)
   })
 
-  it("normalizes generated arrays before returning them", async () => {
+  it("rejects oversized generated arrays rather than silently normalizing them", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => providerResponse(JSON.stringify({
       issues: Array.from({ length: 20 }, () => "x".repeat(700)),
     }))))
@@ -169,9 +190,55 @@ describe("AI proxy boundary", () => {
       task: "proofread",
       resumeText: "Resume",
     }))
-    expect(response.status).toBe(200)
-    const data = await response.json() as { issues: string[] }
-    expect(data.issues).toHaveLength(12)
-    expect(data.issues[0]).toHaveLength(500)
+    expect(response.status).toBe(502)
+  })
+
+  it("supports object-valued and string-valued Workers AI response envelopes", async () => {
+    const valid = {
+      score: 88,
+      matchedKeywords: ["React"],
+      missingKeywords: ["D1"],
+      suggestions: [{ section: "Skills", severity: "medium", text: "Add D1 if it reflects your experience." }],
+      summary: "Good match with one skills gap.",
+    }
+    for (const providerValue of [valid, JSON.stringify(valid)]) {
+      const db = quotaDb()
+      const run = vi.fn(async () => ({ response: providerValue }))
+      const response = await invoke(analyze, request("/api/analyze", {
+        resumeText: "Resume",
+        jobDescription: "Job",
+      }), { AI: { run }, DB: db })
+      expect(response.status).toBe(200)
+      expect(response.headers.get("X-Resumate-AI-Actions-Remaining")).toBe("39")
+      expect(run).toHaveBeenCalledWith(
+        "@cf/qwen/qwen3-30b-a3b-fp8",
+        expect.objectContaining({ response_format: { type: "json_object" } }),
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      )
+      expect(db.writes.some((write) => write.values[0] === "committed")).toBe(true)
+    }
+  })
+
+  it("releases a hosted reservation when provider output is invalid", async () => {
+    const db = quotaDb()
+    const response = await invoke(analyze, request("/api/analyze", {
+      resumeText: "Resume",
+      jobDescription: "Job",
+    }), { AI: { run: vi.fn(async () => ({ response: [] })) }, DB: db })
+    expect(response.status).toBe(502)
+    expect(db.writes.some((write) => write.values[0] === "released")).toBe(true)
+    expect(db.writes.some((write) => write.values[0] === "committed")).toBe(false)
+  })
+
+  it("enforces the monthly plan ceiling with an atomic reservation", async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal("fetch", fetchMock)
+    const response = await invoke(analyze, request("/api/analyze", {
+      resumeText: "Resume",
+      jobDescription: "Job",
+    }), { AI_API_KEY: "test-key", DB: quotaDb({ used: null }) })
+    expect(response.status).toBe(429)
+    expect(response.headers.get("Retry-After")).toBeTruthy()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

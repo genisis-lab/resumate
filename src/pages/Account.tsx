@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { AccountUser, deleteAccount, logoutAccount } from "../lib/auth"
 import { navigate } from "../router"
 
@@ -7,6 +7,19 @@ export function Account({ user, onChanged }: { user: AccountUser | null; onChang
   const [showDelete, setShowDelete] = useState(false)
   const [deletePassword, setDeletePassword] = useState("")
   const [deleting, setDeleting] = useState(false)
+  const [aiUsage, setAiUsage] = useState<{ limit: number; used: number; remaining: number; resetsAt: string } | null>(null)
+  useEffect(() => {
+    if (!user) {
+      setAiUsage(null)
+      return
+    }
+    let active = true
+    void fetch("/api/ai/usage", { credentials: "same-origin" })
+      .then(async (response) => response.ok ? await response.json() as typeof aiUsage : null)
+      .then((usage) => { if (active) setAiUsage(usage) })
+      .catch(() => { if (active) setAiUsage(null) })
+    return () => { active = false }
+  }, [user])
   if (!user) {
     return <div className="status-page"><h1>Your account</h1><p>Sign in to view plan and account details.</p><button className="btn-primary large" onClick={() => navigate("/login")}>Sign in</button></div>
   }
@@ -36,7 +49,19 @@ export function Account({ user, onChanged }: { user: AccountUser | null; onChang
       <header className="account-head"><span className="eyebrow">Account</span><h1>Good to have you here, {user.name.split(" ")[0]}.</h1><p>Manage your verified identity and see what your current plan includes.</p></header>
       <div className="account-grid">
         <section className="account-card"><span className="account-label">Profile</span><h2>{user.name}</h2><p>{user.email}</p><span className="verified-line">✓ Email verified</span></section>
-        <section className="account-card account-plan"><span className="account-label">Current plan</span><h2>Free</h2><p>Core browser editor, local ATS checks, and essential exports. No payment method is connected.</p><button className="btn-primary" onClick={() => navigate("/pricing")}>See upgrade options</button></section>
+        <section className="account-card account-plan">
+          <span className="account-label">Current plan</span>
+          <h2>{user.plan === "sprint" ? "Career Sprint" : user.plan === "pro" ? "Pro" : "Free"}</h2>
+          <p>{user.plan === "free"
+            ? "Core browser editor, local ATS checks, and essential exports. No payment method is connected."
+            : `Hosted AI allowance: ${aiUsage ? `${aiUsage.remaining} of ${aiUsage.limit} actions remain` : "loading…"}. One hosted request uses one action.`}</p>
+          {aiUsage && aiUsage.limit > 0 && (
+            <p className="account-allowance" aria-live="polite">
+              Used {aiUsage.used} · resets {new Date(aiUsage.resetsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+            </p>
+          )}
+          <button className="btn-primary" onClick={() => navigate("/pricing")}>See upgrade options</button>
+        </section>
         <section className="account-card account-data"><span className="account-label">Resume storage</span><h2>Saved on this device</h2><p>Your existing resumes have not been uploaded. Export a backup from the editor before clearing browser data.</p><button className="btn-ghost" onClick={() => navigate("/builder")}>Open editor</button></section>
       </div>
       <section className="account-actions">
