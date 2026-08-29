@@ -1,41 +1,241 @@
+import { useEffect, useRef, useState } from "react"
+
 const FAQS = [
-  ["Is ResuMate a resume-writing service?", "No. ResuMate is self-serve software. You enter and control your own details, choose a template, review automated checks, and export the file yourself."],
-  ["Does the ATS checker guarantee interviews?", "No. The local checker reviews structure and keyword alignment against a job description. It cannot predict an employer's private system or hiring decision."],
-  ["Are AI features live?", "Local ATS analysis and browser-local PDF or text resume matching are live now. Online AI writing tools work only when an AI provider is configured; expanded hosted AI allowances are upcoming."],
-  ["Where are my resumes stored?", "Editing and ordinary saves stay in this browser. Creating an account does not upload existing resumes. Future cloud sync will be opt-in and clearly labeled."],
-  ["Can I export without paying?", "Yes. The free plan includes core PDF and Word exports, and you can also use the browser editor without an account."],
-  ["Can I use ResuMate on mobile?", "Yes. The editor, preview controls, imports, and export menu adapt for phones and tablets."],
+  {
+    question: "Is ResuMate a resume writing service?",
+    answer: "No. ResuMate is self serve software. You enter and control your own details, choose a template, review automated checks, and export the file yourself.",
+  },
+  {
+    question: "Does the ATS check guarantee interviews?",
+    answer: "No. The local check reviews structure and keyword alignment against a job description. It cannot predict an employer's private system or hiring decision.",
+  },
+  {
+    question: "Which AI features are available?",
+    answer: "Local job matching is available on the free plan. Career Sprint and Pro include hosted AI actions for tailored summaries, bullet rewrites, cover letters, interview questions, and other guided writing tools.",
+  },
+  {
+    question: "Where are my resumes stored?",
+    answer: "Ordinary editing and saves stay in this browser. Creating an account does not upload an existing browser resume. Cloud sync is not presented as active until it is ready.",
+  },
+  {
+    question: "Can I export without paying or signing in?",
+    answer: "Yes. You can start in the editor without an account. The free allowance includes three PDF or Word exports and five local ATS checks each month.",
+  },
+  {
+    question: "Does ResuMate work on a phone?",
+    answer: "Yes. The editor, preview controls, job match, template picker, and export flow adapt for phones and tablets.",
+  },
 ]
 
-export function Landing({ onStartBlank, onStartSample, onCreateAccount }: { onStartBlank: () => void; onStartSample: () => void; onCreateAccount: () => void }) {
+const TAGLINE_WORDS = "Your experience is real. Your resume should make it easy to see.".split(" ")
+
+function TaglineReveal() {
+  const sectionRef = useRef<HTMLElement>(null)
+  const [visibleWords, setVisibleWords] = useState(0)
+
+  useEffect(() => {
+    const section = sectionRef.current
+    if (!section) return
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    if (reduceMotion || !("IntersectionObserver" in window)) {
+      setVisibleWords(TAGLINE_WORDS.length)
+      return
+    }
+
+    let timer = 0
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return
+      observer.disconnect()
+      let next = 0
+      const revealNext = () => {
+        next += 1
+        setVisibleWords(next)
+        if (next < TAGLINE_WORDS.length) timer = window.setTimeout(revealNext, 75)
+      }
+      revealNext()
+    }, { threshold: 0.35 })
+    observer.observe(section)
+    return () => {
+      observer.disconnect()
+      window.clearTimeout(timer)
+    }
+  }, [])
+
   return (
-    <div className="landing">
-      <section className="hero landing-hero">
-        <div className="hero-copy">
-          <span className="eyebrow">Self-serve resume software</span>
-          <h1>Build a resume that reads clearly to people and software.</h1>
-          <p className="hero-sub">Write from a structured editor, compare your resume with a job description, and export a clean PDF or Word file. Your details stay under your control.</p>
-          <div className="hero-cta"><button className="btn-primary large" onClick={onCreateAccount}>Create a free account</button><button className="text-button hero-text-action" onClick={onStartBlank}>Open the editor without an account →</button></div>
-          <p className="hero-note">No credit card. Email verification protects your account. Existing browser resumes are never uploaded automatically.</p>
-          <div className="proof-strip" aria-label="Available product capabilities"><span>9 original templates</span><span>PDF and Word export</span><span>Local ATS check</span><span>Offline editing</span></div>
+    <section className="home-tagline" ref={sectionRef} aria-label="ResuMate promise">
+      <p>
+        {TAGLINE_WORDS.map((word, index) => (
+          <span className={index < visibleWords ? "is-active" : ""} key={`${word}-${index}`}>{word} </span>
+        ))}
+      </p>
+    </section>
+  )
+}
+
+export function Landing({ onStartBlank, onStartSample, onCreateAccount }: { onStartBlank: () => void; onStartSample: () => void; onCreateAccount: () => void }) {
+  useEffect(() => {
+    const items = Array.from(document.querySelectorAll<HTMLElement>(".home-page [data-reveal]"))
+    if (!items.length) return
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    if (reduceMotion || !("IntersectionObserver" in window)) {
+      items.forEach((item) => item.classList.add("is-visible"))
+      return
+    }
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return
+        entry.target.classList.add("is-visible")
+        observer.unobserve(entry.target)
+      })
+    }, { rootMargin: "0px 0px -10%", threshold: 0.12 })
+    items.forEach((item) => observer.observe(item))
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div className="home-page">
+      <section className="home-hero" aria-labelledby="home-title">
+        <div className="home-hero-copy">
+          <span className="home-eyebrow">Resume building without the guesswork</span>
+          <h1 id="home-title">Turn your experience into a resume people can scan quickly.</h1>
+          <p className="home-hero-sub">
+            Build in a structured editor, compare your resume with a real job description, and export a clean PDF or Word file. Start free without creating an account.
+          </p>
+          <div className="home-hero-actions">
+            <button className="btn-primary home-primary-action" onClick={onStartBlank}>Build my resume free</button>
+            <a className="home-text-link" href="/pricing">See pricing and limits</a>
+          </div>
+          <p className="home-risk-note">No card required. Your first resume stays in this browser.</p>
+          <div className="home-plan-proof" aria-label="Plan prices">
+            <span><strong>$0</strong> Free</span>
+            <span><strong>$15</strong> Career Sprint</span>
+            <span><strong>$24</strong> Pro monthly</span>
+          </div>
         </div>
-        <div className="hero-product" aria-label="ResuMate editor preview">
-          <div className="product-top"><span>Product Marketing Resume</span><span className="product-saved">Saved locally</span></div>
-          <div className="product-body"><div className="product-editor"><span className="mock-label">Professional summary</span><div className="mock-input tall"><span /><span /><span className="short" /></div><span className="mock-label">Experience</span><div className="mock-input"><span /><span className="short" /></div><div className="mock-score"><strong>82</strong><span>Local match</span></div></div><div className="product-paper"><h2>Maya Chen</h2><p>Product Marketing Manager</p><i /><h3>Professional summary</h3><span /><span /><span className="paper-short" /><h3>Experience</h3><strong>Senior Product Marketing Manager</strong><span /><span /><span /></div></div>
+
+        <div className="home-hero-visual is-visible" data-reveal>
+          <figure className="home-product-demo">
+            <figcaption className="home-demo-bar">
+              <span>Product marketing resume</span>
+              <span className="home-demo-status">Saved locally</span>
+            </figcaption>
+            <div className="home-demo-body" aria-hidden="true">
+              <div className="home-demo-editor">
+                <span className="home-demo-label">Job match</span>
+                <div className="home-score-ring"><strong>82</strong><span>clear match</span></div>
+                <span className="home-demo-label">Priority edit</span>
+                <div className="home-demo-tip">Add one result that shows how your launch work affected adoption.</div>
+              </div>
+              <div className="home-demo-paper">
+                <h2>Maya Chen</h2>
+                <p>Product marketing manager</p>
+                <i />
+                <h3>Profile</h3>
+                <span /><span /><span className="short" />
+                <h3>Experience</h3>
+                <strong>Senior product marketing manager</strong>
+                <span /><span /><span className="short" />
+              </div>
+            </div>
+          </figure>
+          <figure className="home-mascot-card">
+            <img src="/mascot-mate.webp" width="800" height="1000" alt="Mate, ResuMate's friendly paper resume mascot holding a pencil and a check card" decoding="async" />
+            <figcaption><strong>Meet Mate.</strong><span>A calm second set of eyes for the details.</span></figcaption>
+          </figure>
         </div>
       </section>
 
-      <section className="landing-section workflow-section"><div className="section-kicker">A focused workflow</div><h2>You bring the experience. ResuMate helps you shape it.</h2><div className="workflow-grid"><article><span>01</span><h3>Enter your real details</h3><p>Use structured fields, inline quality checks, action-verb guidance, and a live resume preview.</p></article><article><span>02</span><h3>Adapt for the role</h3><p>Paste a job description and use your editor resume or a local PDF/TXT file for deterministic keyword, requirement, and structure feedback. Optional online AI tools are labeled when available.</p></article><article><span>03</span><h3>Export and apply</h3><p>Choose an ATS-conscious template and download PDF, Word, plain text, Markdown, or JSON Resume.</p></article></div></section>
+      <TaglineReveal />
 
-      <section className="landing-section landing-proof"><div className="proof-copy"><span className="section-kicker">Designed for real applications</span><h2>Formatting choices you can explain.</h2><p>Nine original templates cover conservative, compact, technical, and design-led roles. Standard section labels and selectable text keep the practical templates friendly to common parsing workflows.</p><button className="btn-ghost" onClick={onStartSample}>Try the editor with sample data</button></div><div className="template-stack" aria-hidden="true"><div className="stack-sheet executive"><b>ALEX RIVERA</b><span /><span /><em /><span /><span /><em /><span /></div><div className="stack-sheet technical"><b>PRIYA SHAH</b><span /><em /><span /><span /><em /><span /><span /></div><div className="stack-sheet compact"><b>JORDAN LEE</b><span /><span /><em /><span /><em /><span /><span /></div></div></section>
+      <section className="home-section home-benefits" aria-labelledby="benefits-title" data-reveal>
+        <header className="home-section-head">
+          <span className="home-kicker">What changes</span>
+          <h2 id="benefits-title">A better resume workflow, from first draft to final file.</h2>
+          <p>Use deterministic checks for the facts, hosted AI when it helps with wording, and your own judgment for the final decision.</p>
+        </header>
+        <div className="home-benefit-grid">
+          <article className="home-benefit-main">
+            <span>01</span>
+            <h3>Write with structure</h3>
+            <p>Turn scattered notes into clear sections with focused fields, useful prompts, and a live document preview.</p>
+            <div className="home-mini-editor" aria-hidden="true"><span /><span /><span className="short" /></div>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>Match the role, not a mystery score</h3>
+            <p>Compare required and preferred signals against the job description, then see which edit matters first.</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>Use AI when it earns its place</h3>
+            <p>Paid plans include guarded hosted actions for summaries, bullets, cover letters, and interview preparation.</p>
+          </article>
+          <article>
+            <span>04</span>
+            <h3>Keep the final call</h3>
+            <p>Review every suggestion, choose an ATS friendly template, and export files you can inspect yourself.</p>
+          </article>
+        </div>
+      </section>
 
-      <section className="landing-section capability-grid"><div className="capability-main"><span className="section-kicker">Available now</span><h2>Useful before you pay.</h2><p>The browser editor, local ATS check, imports, exports, backups, mobile preview, and share links work today.</p></div><article><span>Local</span><h3>ATS structure and keyword check</h3><p>Compare your content with a target role without sending the text to a server.</p></article><article><span>Optional</span><h3>Online AI assistance</h3><p>Available only when a provider is configured. Hosted allowances are upcoming and never implied as active.</p></article><article><span>Upcoming</span><h3>Cloud resume sync</h3><p>Verified accounts prepare the path; your current browser resumes remain local.</p></article></section>
+      <section className="home-section home-workflow" aria-labelledby="workflow-title" data-reveal>
+        <div className="home-section-head compact">
+          <span className="home-kicker">Three useful steps</span>
+          <h2 id="workflow-title">From blank page to ready to send.</h2>
+        </div>
+        <ol className="home-steps">
+          <li><span>1</span><div><h3>Add what is true</h3><p>Enter your experience, education, skills, and measurable results.</p></div></li>
+          <li><span>2</span><div><h3>Adapt for one role</h3><p>Paste the job description and work through the strongest missing signals.</p></div></li>
+          <li><span>3</span><div><h3>Export with confidence</h3><p>Choose a template and download PDF, Word, text, Markdown, or JSON Resume.</p></div></li>
+        </ol>
+      </section>
 
-      <section className="landing-section landing-faq"><div><span className="section-kicker">Plain answers</span><h2>Know what the software does before you sign up.</h2></div><div className="faq-list">{FAQS.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}</div></section>
+      <section className="home-section home-template-proof" aria-labelledby="templates-title" data-reveal>
+        <div className="home-template-copy">
+          <span className="home-kicker">Nine original templates</span>
+          <h2 id="templates-title">Formatting choices you can explain.</h2>
+          <p>Choose conservative, compact, technical, or design led layouts. The practical templates use standard section labels and selectable text for common parsing workflows.</p>
+          <button className="btn-ghost home-secondary-action" onClick={onStartSample}>Try a filled in sample</button>
+        </div>
+        <div className="home-template-stack" aria-hidden="true">
+          <div className="home-stack-sheet executive"><b>ALEX RIVERA</b><span /><span /><em /><span /><span /><em /><span /></div>
+          <div className="home-stack-sheet technical"><b>PRIYA SHAH</b><span /><em /><span /><span /><em /><span /><span /></div>
+          <div className="home-stack-sheet compact"><b>JORDAN LEE</b><span /><span /><em /><span /><em /><span /><span /></div>
+        </div>
+      </section>
 
-      <section className="landing-final"><span className="eyebrow">Start with the free account</span><h2>Build the document. Keep the decisions.</h2><button className="btn-primary large" onClick={onCreateAccount}>Create a free account</button><p>Or <button className="inline-button" onClick={onStartBlank}>use the editor without signing up</button>.</p></section>
+      <section className="home-section home-plan-section" aria-labelledby="plans-title" data-reveal>
+        <div className="home-plan-copy">
+          <span className="home-kicker">Start free, add power when needed</span>
+          <h2 id="plans-title">Pay for the search you are running now.</h2>
+          <p>Free covers the core workflow. Career Sprint adds 40 hosted AI actions for 30 days. Pro includes 150 hosted AI actions each month.</p>
+        </div>
+        <a className="btn-primary home-primary-action" href="/pricing">Compare every plan</a>
+      </section>
 
-      <footer className="landing-footer"><div><strong>ResuMate</strong><p>Self-serve resume-building software by Built WAI.</p></div><nav className="footer-links" aria-label="Product and legal"><a className="footer-link" href="/pricing">Pricing</a><a className="footer-link" href="mailto:support@builtwai.com">Support</a><a className="footer-link" href="/privacy">Privacy</a><a className="footer-link" href="/tos">Terms</a><a className="footer-link" href="/refund">Refunds</a></nav></footer>
+      <section className="home-section home-faq" aria-labelledby="faq-title" data-reveal>
+        <header className="home-section-head compact">
+          <span className="home-kicker">Plain answers</span>
+          <h2 id="faq-title">Know what ResuMate does before you start.</h2>
+        </header>
+        <div className="home-faq-grid">
+          {FAQS.map((faq) => <article key={faq.question}><h3>{faq.question}</h3><p>{faq.answer}</p></article>)}
+        </div>
+      </section>
+
+      <section className="home-final" data-reveal>
+        <span className="home-eyebrow">Your next draft can start now</span>
+        <h2>Build the resume. Keep the decisions.</h2>
+        <button className="btn-primary home-primary-action" onClick={onStartBlank}>Build my resume free</button>
+        <p>No account is required to begin. <button className="home-inline-action" onClick={onCreateAccount}>Create an account</button> when you want a verified profile and paid plan access.</p>
+      </section>
+
+      <footer className="home-footer">
+        <div><strong>ResuMate</strong><p>Self serve resume software by Built WAI.</p></div>
+        <nav aria-label="Product and legal">
+          <a href="/pricing">Pricing</a><a href="mailto:support@builtwai.com">Support</a><a href="/privacy">Privacy</a><a href="/tos">Terms</a><a href="/refund">Refunds</a>
+        </nav>
+      </footer>
     </div>
   )
 }
