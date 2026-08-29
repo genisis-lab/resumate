@@ -23,6 +23,7 @@ import { useInstallPrompt } from "./lib/pwa"
 import { exportPdf } from "./lib/exportPdf"
 import { ShortcutsModal } from "./components/ShortcutsModal"
 import { BottomSheet } from "./components/BottomSheet"
+import { consumeUsage } from "./lib/usage"
 
 const APP_NAV = [
   { path: "/builder", label: "Editor" },
@@ -38,7 +39,7 @@ const PUBLIC_ROUTES = new Set(["/", "/pricing", "/privacy", "/tos", "/refund", "
 const PAGE_META: Record<string, { title: string; description: string }> = {
   "/pricing": {
     title: "Pricing — ResuMate",
-    description: "Review ResuMate's free tier and planned paid software plans. Checkout is not active.",
+    description: "Compare ResuMate's Free, 30-day Career Sprint, and monthly Pro plans.",
   },
   "/privacy": {
     title: "Privacy Policy — ResuMate",
@@ -50,7 +51,7 @@ const PAGE_META: Record<string, { title: string; description: string }> = {
   },
   "/refund": {
     title: "Refund Policy — ResuMate",
-    description: "ResuMate cancellation and refund terms for future paid plans and digital purchases.",
+    description: "ResuMate cancellation and refund terms for paid plans and digital purchases.",
   },
   "/signup": {
     title: "Create an account — ResuMate",
@@ -98,6 +99,7 @@ export default function App() {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showMobileNav, setShowMobileNav] = useState(false)
   const account = useAccount()
+  const effectivePlan = account.user?.plan ?? "free"
 
   const isApp = !PUBLIC_ROUTES.has(route)
   const activeNavLabel = APP_NAV.find((item) => item.path === route)?.label || "current page"
@@ -124,6 +126,7 @@ export default function App() {
 
   // If the page was opened from a shared link, offer to load it once.
   useEffect(() => {
+    if (account.loading) return
     if (sharedChecked.current) return
     sharedChecked.current = true
     const shared = readSharedResume()
@@ -131,13 +134,13 @@ export default function App() {
       const ok = confirm("This link contains a shared resume. Load it as a new resume in your browser?")
       clearShareParam()
       if (ok) {
-        replaceResume(shared)
+        replaceResume(effectivePlan === "free" ? { ...shared, id: resume.id, name: resume.name } : shared)
         navigate("/builder")
       } else {
         navigate("/")
       }
     }
-  }, [replaceResume])
+  }, [account.loading, effectivePlan, replaceResume, resume.id, resume.name])
 
   // Global undo/redo keyboard shortcuts.
   useEffect(() => {
@@ -166,7 +169,9 @@ export default function App() {
       if (mod && e.key.toLowerCase() === "s") {
         if (route === "/builder") {
           e.preventDefault()
-          exportPdf()
+          const quota = consumeUsage(effectivePlan, "documentExports")
+          if (!quota.allowed) alert("The Free plan includes 3 PDF or Word exports each month. Upgrade for unlimited exports.")
+          else exportPdf(resume.contact.fullName || resume.name)
         }
         return
       }
@@ -181,7 +186,7 @@ export default function App() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [route])
+  }, [effectivePlan, resume.contact.fullName, resume.name, route])
 
   return (
     <div className="app">
@@ -242,7 +247,7 @@ export default function App() {
               navigate("/builder")
             }}
             onStartSample={() => {
-              replaceResume(createSampleResume())
+              replaceResume({ ...createSampleResume(), id: resume.id, name: resume.name })
               navigate("/builder")
             }}
             onCreateAccount={() => navigate("/signup")}
@@ -258,10 +263,11 @@ export default function App() {
             redo={redo}
             canUndo={canUndo}
             canRedo={canRedo}
+            plan={effectivePlan}
           />
         )}
-        {route === "/templates" && <Templates resume={resume} setResume={setResume} />}
-        {route === "/analyze" && <Analyze resume={resume} setResume={setResume} />}
+        {route === "/templates" && <Templates resume={resume} setResume={setResume} plan={effectivePlan} />}
+        {route === "/analyze" && <Analyze resume={resume} setResume={setResume} plan={effectivePlan} />}
         {route === "/cover" && <CoverLetter resume={resume} />}
         {route === "/interview" && <Interview resume={resume} />}
         {route === "/settings" && <Settings />}

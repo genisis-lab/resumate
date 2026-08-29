@@ -195,6 +195,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 .select { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: 13px; max-width: 200px; }
 .chip { border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-soft); padding: 6px 11px; border-radius: 999px; font-size: 13px; font-weight: 500; }
 .chip.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+.chip.locked:not(.active) { border-style: dashed; color: var(--muted); }
 .swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--surface); outline: 1px solid var(--border-strong); padding: 0; }
 .swatch.active { outline: 2px solid var(--text); }
 
@@ -309,6 +310,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 .template-gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; margin-top: 22px; }
 .template-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
 .template-card.active { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-soft); }
+.template-card.locked .template-thumb { opacity: .58; }
 .template-thumb { height: 280px; overflow: hidden; background: var(--surface-2); display: flex; justify-content: center; padding-top: 18px; }
 .thumb-scale { transform: scale(.52); transform-origin: top center; pointer-events: none; }
 .template-info { padding: 16px 18px; }
@@ -740,6 +742,51 @@ mark.hl { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 2p
   .sug-section { width: 100%; }
   .signal-list { grid-template-columns: 1fr; }
   .nav-right .btn-ghost, .nav-right button { min-height: 44px; padding: 6px 8px; font-size: 13px; }
+}
+
+/* Keep native PDF export independent from screen/mobile layout. A zero @page
+   margin prevents Chromium from reserving space for its automatic title, URL,
+   date, and page-count headers; the resume supplies its own safe page inset. */
+@media print {
+  @page { margin: 0; }
+  html, body, #root, .app, .main {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  body.printing .builder-grid,
+  body.printing .preview-pane,
+  body.printing .preview-scroll {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+  body.printing #resume-print-area.resume-paper {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0.5in !important;
+    box-shadow: none !important;
+  }
+  body.printing .rp-entry-head { flex-direction: row !important; gap: 12px !important; }
+  body.printing .tpl-twocolumn .rp-two { grid-template-columns: 34% 1fr !important; gap: 22px !important; }
+  body.printing .tpl-twocolumn .rp-aside {
+    margin: 0 !important;
+    padding: 0 18px 0 0 !important;
+    border-right: 1px solid #e2e2e2 !important;
+    border-bottom: 0 !important;
+  }
+  body.printing .tpl-creative .rp-header {
+    margin: -0.5in -0.5in 18px !important;
+    padding: 32px 0.5in 26px !important;
+  }
 }
 
 /* ===== Feature batch: PWA, fit-to-page, writing coach, custom sections, share, shortcuts ===== */
