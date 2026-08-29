@@ -79,7 +79,16 @@ function ThemeToggle() {
       title="Toggle light or dark theme"
       aria-label="Toggle light or dark theme"
     >
-      {theme === "dark" ? "\u2600\ufe0f" : "\ud83c\udf19"}
+      {theme === "dark" ? (
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+          <path d="M12 2.75v2M12 19.25v2M21.25 12h-2M4.75 12h-2M18.54 5.46l-1.42 1.42M6.88 17.12l-1.42 1.42M18.54 18.54l-1.42-1.42M6.88 6.88 5.46 5.46" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path d="M19.65 15.72A8.2 8.2 0 0 1 8.28 4.35 8.2 8.2 0 1 0 19.65 15.72Z" fill="none" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" />
+        </svg>
+      )}
     </button>
   )
 }
@@ -88,7 +97,10 @@ function InstallButton() {
   const { canInstall, promptInstall } = useInstallPrompt()
   if (!canInstall) return null
   return (
-    <button className="btn-ghost small install-button" onClick={promptInstall} title="Install ResuMate as an app">⬇ Install</button>
+    <button className="btn-ghost small install-button" onClick={promptInstall} title="Install ResuMate as an app">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3.5v11m0 0 4-4m-4 4-4-4M5 18.5h14" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" /></svg>
+      <span>Install</span>
+    </button>
   )
 }
 
@@ -106,10 +118,10 @@ export default function App() {
 
   useEffect(() => {
     const meta = PAGE_META[route]
-    document.title = meta?.title || "ResuMate — Self-serve resume builder"
+    document.title = meta?.title || "ResuMate | Free resume builder and job match"
     const description = document.querySelector<HTMLMetaElement>('meta[name="description"]')
     if (description) {
-      description.content = meta?.description || "Build an ATS-conscious resume with browser-first editing, local job-description checks, and PDF or Word export."
+      description.content = meta?.description || "Build a clear resume, compare it with a real job description, and export PDF or Word. Start free without an account."
     }
     const canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]')
     if (canonical) canonical.href = `https://resume.builtwai.com${PUBLIC_ROUTES.has(route) ? route : "/"}`
@@ -193,7 +205,9 @@ export default function App() {
       <a className="skip-link" href="#main">Skip to content</a>
       <nav className={`nav no-print ${isApp ? "app-nav" : "public-nav"}`} aria-label="Primary navigation">
         <button className="brand" onClick={() => navigate("/")} aria-label="ResuMate home">
-          <span className="brand-mark" aria-hidden="true">◈</span><span className="brand-name">ResuMate</span>
+          <span className="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22"><path d="M7 3.75h7l3 3v13.5H7z" fill="none" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" /><path d="M14 3.75v3h3M9.5 11h5M9.5 14.5h5" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" /></svg>
+          </span><span className="brand-name">ResuMate</span>
         </button>
         {isApp && (
           <div className="nav-links">
@@ -221,7 +235,7 @@ export default function App() {
           ) : null}
           <InstallButton />
           {isApp && <button className="icon-btn" onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (press ?)" aria-label="Keyboard shortcuts">⌨</button>}
-          {!isApp && <button className="pricing-nav" onClick={() => navigate("/pricing")}>Pricing</button>}
+          {!isApp && <button className={`pricing-nav${route === "/pricing" ? " active" : ""}`} aria-current={route === "/pricing" ? "page" : undefined} onClick={() => navigate("/pricing")}>Pricing</button>}
           {!account.loading && account.user && (
             <button className="account-nav" onClick={() => navigate("/account")}>{account.user.name.split(" ")[0]}</button>
           )}
