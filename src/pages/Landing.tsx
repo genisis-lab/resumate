@@ -3,7 +3,7 @@ const FAQS = [
   ["Does the ATS checker guarantee interviews?", "No. The local checker reviews structure and keyword alignment against a job description. It cannot predict an employer's private system or hiring decision."],
   ["Are AI features live?", "Local ATS analysis and browser-local PDF or text resume matching are live now. Online AI writing tools work only when an AI provider is configured; expanded hosted AI allowances are upcoming."],
   ["Where are my resumes stored?", "Editing and ordinary saves stay in this browser. Creating an account does not upload existing resumes. Future cloud sync will be opt-in and clearly labeled."],
-  ["Can I export without paying?", "Yes. The current launch build keeps the core export tools available while paid checkout is being prepared."],
+  ["Can I export without paying?", "Yes. The free plan includes core PDF and Word exports, and you can also use the browser editor without an account."],
   ["Can I use ResuMate on mobile?", "Yes. The editor, preview controls, imports, and export menu adapt for phones and tablets."],
 ]
 

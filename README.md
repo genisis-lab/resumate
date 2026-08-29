@@ -58,7 +58,7 @@ A browser-first resume builder built with **React + Vite**. Users enter their ow
 - Custom hash router, pure-JS `.docx`/zip writer, native print-to-PDF, `pdfjs-dist` for PDF import, `qrcode` for share QR codes
 - PWA: web app manifest + a service worker (network-first for navigation, stale-while-revalidate for assets)
 - Cloudflare Pages + Pages Functions, D1 account storage, and Resend transactional email
-- Provider-neutral plan and entitlement boundaries; checkout is intentionally disabled
+- Provider-neutral plan and entitlement boundaries with authenticated Whop checkout
 
 ## Local development
 

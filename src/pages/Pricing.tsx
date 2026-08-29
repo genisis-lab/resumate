@@ -61,7 +61,7 @@ const COMPARISON = [
 const FAQS = [
   {
     question: "Is ResuMate still free?",
-    answer: "Yes. The planned free tier includes one resume, three ATS-safe templates, five local ATS checks each month, and three PDF or Word exports each month. During this billing preview, current editor capabilities remain available.",
+    answer: "Yes. The free tier includes one resume, three ATS-safe templates, five local ATS checks each month, and three PDF or Word exports each month.",
   },
   {
     question: "Is hosted ATS parsing live?",
@@ -69,11 +69,11 @@ const FAQS = [
   },
   {
     question: "Does Career Sprint renew automatically?",
-    answer: "The intended offer is a one-time 30-day pass with no renewal. Checkout is not active yet, so no purchase or charge can occur today.",
+    answer: "Career Sprint is a one-time 30-day pass. It does not renew automatically.",
   },
   {
     question: "Can I cancel Pro anytime?",
-    answer: "That is the intended policy. Pro is not for sale yet; final renewal and cancellation terms will be shown before any checkout is activated.",
+    answer: "Yes. Pro renews monthly until canceled. Canceling stops the next renewal and access normally continues through the paid period.",
   },
   {
     question: "What counts as an AI action?",
@@ -128,11 +128,10 @@ export function Pricing() {
     <div className="pricing-page">
       <header className="pricing-hero">
         <a className="btn-ghost small pricing-back" href="/">← Back home</a>
-        <span className="pricing-status">Planned launch pricing</span>
+        <span className="pricing-status">Live pricing</span>
         <h1>Pay for the search,<br />not another forever subscription.</h1>
         <p>
-          Create a free account today. Career Sprint and Pro show the intended software limits so
-          you can evaluate the upgrade path before checkout is activated.
+          Start free, then choose a 30-day Career Sprint or monthly Pro plan when you need more.
         </p>
         <a className="pricing-jump" href="#compare">Compare every limit ↓</a>
       </header>
@@ -166,13 +165,13 @@ export function Pricing() {
       {checkoutError && <p className="pricing-honesty error" role="alert">{checkoutError}</p>}
 
       <p className="pricing-honesty">
-        Paid accounts and checkout are not live. These are target launch prices and limits, not an
-        offer to purchase. Current editor access is unchanged during this preview.
+        Paid checkout is available to signed-in, email-verified accounts. Payments are processed
+        securely by Whop, and no charge occurs until you confirm on the hosted checkout page.
       </p>
 
       <section className="pricing-section" id="compare">
         <div className="pricing-section-head">
-          <span>Planned plan details</span>
+          <span>Plan details</span>
           <h2>Know exactly what changes.</h2>
         </div>
         <div className="comparison" role="table" aria-label="Plan comparison">
@@ -230,7 +229,7 @@ export function Pricing() {
       <section className="pricing-final">
         <h2>Build the resume first.<br />Upgrade when the search demands it.</h2>
         <button className="btn-primary large" type="button" onClick={() => navigate("/signup")}>Create a free account</button>
-        <p>No card required. Checkout is not active.</p>
+        <p>No card is required for the free plan.</p>
       </section>
 
       <footer className="landing-footer">

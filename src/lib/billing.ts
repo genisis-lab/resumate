@@ -1,11 +1,9 @@
-// Checkout is deliberately inactive. Future webhooks should map the one active
-// provider's product IDs into these internal plans and never expose provider IDs
-// as application entitlements.
+// Provider IDs stay server-side; the client works only with internal plan names.
 export type PlanId = "free" | "sprint" | "pro"
 
 export const BILLING_STATE = {
-  checkoutEnabled: false,
-  activeProvider: null as string | null,
+  checkoutEnabled: true,
+  activeProvider: "whop" as string | null,
 }
 
 export const PLAN_ENTITLEMENTS: Record<PlanId, readonly string[]> = {

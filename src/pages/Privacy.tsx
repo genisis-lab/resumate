@@ -30,14 +30,14 @@ export function Privacy() {
           <li><strong>On-device content.</strong> Resumes, saved job descriptions, theme settings, and optional AI-provider settings are stored in your browser unless you choose an online feature or future account-sync feature.</li>
           <li><strong>Account information.</strong> If you register, we process your name, email address, password-derived authentication data, email-verification status, plan, and account activity.</li>
           <li><strong>Resume and job-search content.</strong> This may include contact details, work history, education, skills, job descriptions, cover letters, and other text you enter. Online AI features receive only the content needed for the request you initiate.</li>
-          <li><strong>Payment information.</strong> If paid plans are offered, our checkout provider processes payment-card and billing details. We receive transaction details such as the plan, amount, currency, status, and a payment-customer identifier, but not your full card number.</li>
+          <li><strong>Payment information.</strong> For paid plans, our checkout provider processes payment-card and billing details. We receive transaction details such as the plan, amount, currency, status, and a payment-customer identifier, but not your full card number.</li>
           <li><strong>Technical and support data.</strong> Our hosting and security providers may process IP address, device and browser information, request timestamps, error data, and security events. We also process messages and attachments you send to support.</li>
         </ul>
       </LegalSection>
 
       <LegalSection title="3. How we use information">
         <ul className="bullet-list">
-          <li>Provide the editor, exports, accounts, optional AI tools, future account sync, subscriptions when launched, and customer support.</li>
+          <li>Provide the editor, exports, accounts, optional AI tools, future account sync, subscriptions, and customer support.</li>
           <li>Authenticate accounts, remember settings, and maintain service security.</li>
           <li>Process purchases, prevent fraud, keep accounting records, and send service or billing notices.</li>
           <li>Debug, maintain, and improve ResuMate using aggregated or appropriately limited technical information.</li>
