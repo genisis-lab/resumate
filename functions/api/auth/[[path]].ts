@@ -1,3 +1,5 @@
+import { pbkdf2 } from "node:crypto"
+
 type AuthEnv = Cloudflare.Env & {
   RESEND_API_KEY?: string
   ADMIN_USER_IDS?: string
@@ -51,13 +53,13 @@ async function sha256(value: string): Promise<string> {
 }
 
 async function derivePassword(password: string, salt: string): Promise<string> {
-  const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"])
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt: encoder.encode(salt), iterations: 210_000 },
-    key,
-    256,
-  )
-  return bytesToBase64Url(new Uint8Array(bits))
+  const bits = await new Promise<Uint8Array>((resolve, reject) => {
+    pbkdf2(password, salt, 210_000, 32, "sha256", (error, derivedKey) => {
+      if (error) reject(error)
+      else resolve(new Uint8Array(derivedKey))
+    })
+  })
+  return bytesToBase64Url(bits)
 }
 
 function constantTimeEqual(left: string, right: string): boolean {
