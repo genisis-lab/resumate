@@ -4,6 +4,7 @@ export type AiEnv = Cloudflare.Env & {
   AI_API_URL?: string
   AI_MODEL?: string
   ADMIN_USER_IDS?: string
+  ADMIN_EMAILS?: string
 }
 
 export interface ClientAiOptions {
@@ -143,12 +144,18 @@ async function incrementQuota(env: AiEnv, key: string, windowMs: number): Promis
   ).bind(normalizedKey).first<{ attempts: number; windowStartedAt: number }>()
 }
 
-function isAdminUser(env: AiEnv, userId: string): boolean {
-  return (env.ADMIN_USER_IDS || "")
+function adminValues(value = ""): string[] {
+  return value
     .split(",")
-    .map((id) => id.trim())
+    .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean)
-    .includes(userId)
+}
+
+function isAdminUser(env: AiEnv, user: { id: string; email: string; emailVerifiedAt: number | null }): boolean {
+  const userIdAllowed = adminValues(env.ADMIN_USER_IDS).includes(user.id.toLowerCase())
+  const verifiedEmailAllowed = Boolean(user.emailVerifiedAt)
+    && adminValues(env.ADMIN_EMAILS).includes(user.email.toLowerCase())
+  return userIdAllowed || verifiedEmailAllowed
 }
 
 function utcMonthKey(now = new Date()): string {
@@ -226,12 +233,12 @@ export async function hostedAiUsage(request: Request, env: AiEnv): Promise<{
   const sessionToken = cookieValue(request, SESSION_COOKIE)
   if (!sessionToken) return null
   const user = await env.DB.prepare(
-    `SELECT u.id, u.plan
-     FROM sessions s JOIN users u ON u.id = s.user_id
-     WHERE s.token_hash = ? AND s.expires_at > ?`,
-  ).bind(await sha256(sessionToken), Date.now()).first<{ id: string; plan: "free" | "sprint" | "pro" }>()
+     `SELECT u.id, u.email, u.email_verified_at AS emailVerifiedAt, u.plan
+      FROM sessions s JOIN users u ON u.id = s.user_id
+      WHERE s.token_hash = ? AND s.expires_at > ?`,
+  ).bind(await sha256(sessionToken), Date.now()).first<{ id: string; email: string; emailVerifiedAt: number | null; plan: "free" | "sprint" | "pro" }>()
   if (!user) return null
-  const isAdmin = isAdminUser(env, user.id)
+  const isAdmin = isAdminUser(env, user)
 
   const now = new Date()
   const periodKey = utcMonthKey(now)
@@ -304,14 +311,14 @@ export async function enforceAiQuota(
     const sessionToken = cookieValue(request, SESSION_COOKIE)
     if (!sessionToken) return text("Sign in with a verified account to use hosted AI", 401)
     const user = await env.DB.prepare(
-      `SELECT u.id, u.plan, u.email_verified_at AS emailVerifiedAt
+      `SELECT u.id, u.email, u.plan, u.email_verified_at AS emailVerifiedAt
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ? AND s.expires_at > ?`,
-    ).bind(await sha256(sessionToken), Date.now()).first<{ id: string; plan: "free" | "sprint" | "pro"; emailVerifiedAt: number | null }>()
+    ).bind(await sha256(sessionToken), Date.now()).first<{ id: string; email: string; plan: "free" | "sprint" | "pro"; emailVerifiedAt: number | null }>()
     if (!user) return text("Sign in with a verified account to use hosted AI", 401)
     if (!user.emailVerifiedAt) return text("Verify your email to use hosted AI", 403)
 
-    const isAdmin = isAdminUser(env, user.id)
+    const isAdmin = isAdminUser(env, user)
     if (!isAdmin && user.plan === "free") return text("Hosted AI requires Career Sprint or Pro", 403)
     const paidPlan = user.plan === "sprint" || user.plan === "pro" ? user.plan : null
 

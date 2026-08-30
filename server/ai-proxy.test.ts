@@ -11,7 +11,7 @@ function quotaDb(options: { attempts?: number; verified?: boolean; plan?: "free"
     prepare: vi.fn((sql: string) => ({
       bind: vi.fn((...values: unknown[]) => ({
         first: vi.fn(async () => {
-          if (sql.includes("FROM sessions")) return { id: "user-1", plan, emailVerifiedAt: verified ? Date.now() : null }
+          if (sql.includes("FROM sessions")) return { id: "user-1", email: "owner@example.com", plan, emailVerifiedAt: verified ? Date.now() : null }
           if (sql.includes("INSERT INTO ai_action_reservations")) return used === null ? null : { used }
           return { attempts, windowStartedAt: Date.now() }
         }),
@@ -255,7 +255,7 @@ describe("AI proxy boundary", () => {
     const response = await invoke(analyze, request("/api/analyze", {
       resumeText: "Resume",
       jobDescription: "Job",
-    }), { AI: { run }, DB: db, ADMIN_USER_IDS: "user-1" })
+    }), { AI: { run }, DB: db, ADMIN_EMAILS: "owner@example.com" })
 
     expect(response.status).toBe(200)
     expect(response.headers.get("X-Resumate-AI-Actions-Remaining")).toBeNull()
