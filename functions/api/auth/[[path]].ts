@@ -22,6 +22,7 @@ const SESSION_COOKIE = "__Host-resumate_session"
 const SESSION_SECONDS = 60 * 60 * 24 * 30
 const VERIFY_SECONDS = 60 * 60
 const MAX_BODY_BYTES = 8_192
+const PASSWORD_ITERATIONS = 100_000
 
 function json(data: unknown, status = 200, headers: HeadersInit = {}): Response {
   return new Response(JSON.stringify(data), {
@@ -54,7 +55,7 @@ async function sha256(value: string): Promise<string> {
 
 async function derivePassword(password: string, salt: string): Promise<string> {
   const bits = await new Promise<Uint8Array>((resolve, reject) => {
-    pbkdf2(password, salt, 210_000, 32, "sha256", (error, derivedKey) => {
+    pbkdf2(password, salt, PASSWORD_ITERATIONS, 32, "sha256", (error, derivedKey) => {
       if (error) reject(error)
       else resolve(new Uint8Array(derivedKey))
     })
