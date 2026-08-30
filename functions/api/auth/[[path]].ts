@@ -1,6 +1,7 @@
 type AuthEnv = Cloudflare.Env & {
   RESEND_API_KEY?: string
   ADMIN_USER_IDS?: string
+  ADMIN_EMAILS?: string
 }
 
 type UserRow = {
@@ -108,12 +109,18 @@ async function allowAttempt(env: AuthEnv, key: string, limit: number, windowMs: 
   return Boolean(row && row.attempts <= limit)
 }
 
-function isAdminUser(env: AuthEnv, userId: string): boolean {
-  return (env.ADMIN_USER_IDS || "")
+function adminValues(value = ""): string[] {
+  return value
     .split(",")
-    .map((id) => id.trim())
+    .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean)
-    .includes(userId)
+}
+
+function isAdminUser(env: AuthEnv, user: UserRow): boolean {
+  const userIdAllowed = adminValues(env.ADMIN_USER_IDS).includes(user.id.toLowerCase())
+  const verifiedEmailAllowed = Boolean(user.email_verified_at)
+    && adminValues(env.ADMIN_EMAILS).includes(user.email.toLowerCase())
+  return userIdAllowed || verifiedEmailAllowed
 }
 
 async function bodyObject(request: Request): Promise<Record<string, unknown> | null> {
@@ -146,7 +153,7 @@ function publicUser(user: UserRow, env: AuthEnv) {
     name: user.name,
     emailVerified: Boolean(user.email_verified_at),
     plan: user.plan,
-    isAdmin: isAdminUser(env, user.id),
+    isAdmin: isAdminUser(env, user),
     createdAt: user.created_at,
   }
 }
