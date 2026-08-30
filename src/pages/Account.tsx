@@ -7,7 +7,7 @@ export function Account({ user, onChanged }: { user: AccountUser | null; onChang
   const [showDelete, setShowDelete] = useState(false)
   const [deletePassword, setDeletePassword] = useState("")
   const [deleting, setDeleting] = useState(false)
-  const [aiUsage, setAiUsage] = useState<{ limit: number; used: number; remaining: number; resetsAt: string } | null>(null)
+  const [aiUsage, setAiUsage] = useState<{ limit: number | null; used: number; remaining: number | null; resetsAt: string; unlimited?: boolean } | null>(null)
   useEffect(() => {
     if (!user) {
       setAiUsage(null)
@@ -51,11 +51,13 @@ export function Account({ user, onChanged }: { user: AccountUser | null; onChang
         <section className="account-card"><span className="account-label">Profile</span><h2>{user.name}</h2><p>{user.email}</p><span className="verified-line">✓ Email verified</span></section>
         <section className="account-card account-plan">
           <span className="account-label">Current plan</span>
-          <h2>{user.plan === "sprint" ? "Career Sprint" : user.plan === "pro" ? "Pro" : "Free"}</h2>
-          <p>{user.plan === "free"
+          <h2>{user.isAdmin ? "Admin" : user.plan === "sprint" ? "Career Sprint" : user.plan === "pro" ? "Pro" : "Free"}</h2>
+          <p>{user.isAdmin
+            ? "Owner access includes every premium feature and unlimited monthly hosted AI actions. Security and burst protections still apply."
+            : user.plan === "free"
             ? "Core browser editor, local ATS checks, and essential exports. No payment method is connected."
             : `Hosted AI allowance: ${aiUsage ? `${aiUsage.remaining} of ${aiUsage.limit} actions remain` : "loading…"}. One hosted request uses one action.`}</p>
-          {aiUsage && aiUsage.limit > 0 && (
+          {aiUsage && aiUsage.limit !== null && aiUsage.limit > 0 && (
             <p className="account-allowance" aria-live="polite">
               Used {aiUsage.used} · resets {new Date(aiUsage.resetsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
             </p>

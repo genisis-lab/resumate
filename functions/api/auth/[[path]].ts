@@ -1,5 +1,6 @@
 type AuthEnv = Cloudflare.Env & {
   RESEND_API_KEY?: string
+  ADMIN_USER_IDS?: string
 }
 
 type UserRow = {
@@ -96,14 +97,23 @@ function clientKey(request: Request, action: string, email = ""): string {
 
 async function allowAttempt(env: AuthEnv, key: string, limit: number, windowMs: number): Promise<boolean> {
   const now = Date.now()
-  const row = await env.DB.prepare(
+  await env.DB.prepare(
     `INSERT INTO auth_rate_limits (key, attempts, window_started_at) VALUES (?, 1, ?)
      ON CONFLICT(key) DO UPDATE SET
        attempts = CASE WHEN ? - window_started_at >= ? THEN 1 ELSE attempts + 1 END,
-       window_started_at = CASE WHEN ? - window_started_at >= ? THEN ? ELSE window_started_at END
-     RETURNING attempts`,
-  ).bind(key, now, now, windowMs, now, windowMs, now).first<{ attempts: number }>()
+       window_started_at = CASE WHEN ? - window_started_at >= ? THEN ? ELSE window_started_at END`,
+  ).bind(key, now, now, windowMs, now, windowMs, now).run()
+  const row = await env.DB.prepare("SELECT attempts FROM auth_rate_limits WHERE key = ?")
+    .bind(key).first<{ attempts: number }>()
   return Boolean(row && row.attempts <= limit)
+}
+
+function isAdminUser(env: AuthEnv, userId: string): boolean {
+  return (env.ADMIN_USER_IDS || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean)
+    .includes(userId)
 }
 
 async function bodyObject(request: Request): Promise<Record<string, unknown> | null> {
@@ -129,13 +139,14 @@ function isJsonRequest(request: Request): boolean {
   return request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() === "application/json"
 }
 
-function publicUser(user: UserRow) {
+function publicUser(user: UserRow, env: AuthEnv) {
   return {
     id: user.id,
     email: user.email,
     name: user.name,
     emailVerified: Boolean(user.email_verified_at),
     plan: user.plan,
+    isAdmin: isAdminUser(env, user.id),
     createdAt: user.created_at,
   }
 }
@@ -231,11 +242,15 @@ async function verify(request: Request, env: AuthEnv): Promise<Response> {
   const token = typeof body?.token === "string" ? body.token : ""
   if (token.length < 32 || token.length > 128) return json({ error: "This verification link is invalid." }, 400)
   const tokenHash = await sha256(token)
-  const record = await env.DB.prepare(
-    "DELETE FROM email_verification_tokens WHERE token_hash = ? AND expires_at > ? RETURNING user_id",
-  ).bind(tokenHash, Date.now()).first<{ user_id: string }>()
-  if (!record) return json({ error: "This verification link is invalid or expired." }, 400)
   const now = Date.now()
+  const record = await env.DB.prepare(
+    "SELECT user_id FROM email_verification_tokens WHERE token_hash = ? AND expires_at > ?",
+  ).bind(tokenHash, now).first<{ user_id: string }>()
+  if (!record) return json({ error: "This verification link is invalid or expired." }, 400)
+  const consumed = await env.DB.prepare(
+    "DELETE FROM email_verification_tokens WHERE token_hash = ? AND expires_at > ?",
+  ).bind(tokenHash, now).run()
+  if (Number(consumed.meta.changes) !== 1) return json({ error: "This verification link is invalid or expired." }, 400)
   await env.DB.prepare("UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?), updated_at = ? WHERE id = ?")
     .bind(now, now, record.user_id).run()
   const session = await createSession(record.user_id, env)
@@ -257,7 +272,7 @@ async function login(request: Request, env: AuthEnv): Promise<Response> {
   if (!user || !constantTimeEqual(candidate, user.password_hash)) return json({ error: "Email or password is incorrect." }, 401)
   if (!user.email_verified_at) return json({ error: "Verify your email before signing in.", code: "EMAIL_NOT_VERIFIED" }, 403)
   const session = await createSession(user.id, env)
-  return json({ user: publicUser(user) }, 200, { "set-cookie": sessionCookie(session) })
+  return json({ user: publicUser(user, env) }, 200, { "set-cookie": sessionCookie(session) })
 }
 
 async function resend(request: Request, env: AuthEnv): Promise<Response> {
@@ -299,7 +314,7 @@ async function handle(request: Request, env: AuthEnv): Promise<Response> {
   if (request.method !== "GET" && !isJsonRequest(request)) return json({ error: "Requests must use JSON." }, 415)
   if (request.method === "GET" && action === "session") {
     const user = await userForRequest(request, env)
-    return json({ user: user ? publicUser(user) : null })
+    return json({ user: user ? publicUser(user, env) : null })
   }
   if (request.method === "POST" && action === "register") return register(request, env)
   if (request.method === "POST" && action === "verify") return verify(request, env)
@@ -310,4 +325,15 @@ async function handle(request: Request, env: AuthEnv): Promise<Response> {
   return json({ error: "Not found." }, 404)
 }
 
-export const onRequest: PagesFunction<AuthEnv> = ({ request, env }) => handle(request, env)
+export const onRequest: PagesFunction<AuthEnv> = async ({ request, env }) => {
+  try {
+    return await handle(request, env)
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: "auth_request_failed",
+      action: new URL(request.url).pathname.split("/").filter(Boolean).at(-1) || "unknown",
+      reason: error instanceof Error ? error.name : "unknown",
+    }))
+    return json({ error: "Account service is temporarily unavailable. Please try again in a moment." }, 503)
+  }
+}

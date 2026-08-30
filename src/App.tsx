@@ -111,7 +111,7 @@ export default function App() {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showMobileNav, setShowMobileNav] = useState(false)
   const account = useAccount()
-  const effectivePlan = account.user?.plan ?? "free"
+  const effectivePlan = account.user?.isAdmin ? "pro" : account.user?.plan ?? "free"
 
   const isApp = !PUBLIC_ROUTES.has(route)
   const activeNavLabel = APP_NAV.find((item) => item.path === route)?.label || "current page"

@@ -6,6 +6,7 @@ export type AccountUser = {
   name: string
   emailVerified: boolean
   plan: "free" | "sprint" | "pro"
+  isAdmin: boolean
   createdAt: number
 }
 
@@ -19,7 +20,12 @@ async function authRequest(path: string, init?: RequestInit): Promise<AuthRespon
   })
   let data: AuthResponse = {}
   try { data = await response.json() as AuthResponse } catch { /* handled below */ }
-  if (!response.ok) throw new Error(data.error || "Account request failed. Please try again.")
+  if (!response.ok) {
+    const fallback = response.status >= 500
+      ? "Account service is temporarily unavailable. Please try again in a moment."
+      : "Account request failed. Please try again."
+    throw new Error(data.error || fallback)
+  }
   return data
 }
 

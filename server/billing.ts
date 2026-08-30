@@ -100,17 +100,20 @@ export async function createWhopCheckout(
     return text("You already have an active paid plan. Manage billing from your account before changing plans.", 409)
   }
 
-  const rate = await env.DB.prepare(
+  const rateKey = `billing:checkout:${user.id}`
+  await env.DB.prepare(
     `INSERT INTO auth_rate_limits (key, attempts, window_started_at) VALUES (?, 1, ?)
      ON CONFLICT(key) DO UPDATE SET
        attempts = CASE WHEN ? - window_started_at >= ? THEN 1 ELSE attempts + 1 END,
-       window_started_at = CASE WHEN ? - window_started_at >= ? THEN ? ELSE window_started_at END
-     RETURNING attempts, window_started_at AS windowStartedAt`,
+       window_started_at = CASE WHEN ? - window_started_at >= ? THEN ? ELSE window_started_at END`,
   ).bind(
-    `billing:checkout:${user.id}`, now,
+    rateKey, now,
     now, CHECKOUT_RATE_WINDOW_MS,
     now, CHECKOUT_RATE_WINDOW_MS, now,
-  ).first<{ attempts: number; windowStartedAt: number }>()
+  ).run()
+  const rate = await env.DB.prepare(
+    "SELECT attempts, window_started_at AS windowStartedAt FROM auth_rate_limits WHERE key = ?",
+  ).bind(rateKey).first<{ attempts: number; windowStartedAt: number }>()
   if (!rate) return text("Checkout is temporarily unavailable", 503)
   if (rate.attempts > CHECKOUT_RATE_LIMIT) {
     const retryAfter = Math.max(1, Math.ceil((rate.windowStartedAt + CHECKOUT_RATE_WINDOW_MS - now) / 1_000))

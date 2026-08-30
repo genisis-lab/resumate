@@ -3,6 +3,7 @@ export type AiEnv = Cloudflare.Env & {
   AI_API_KEY?: string
   AI_API_URL?: string
   AI_MODEL?: string
+  ADMIN_USER_IDS?: string
 }
 
 export interface ClientAiOptions {
@@ -130,13 +131,24 @@ async function sha256(value: string): Promise<string> {
 
 async function incrementQuota(env: AiEnv, key: string, windowMs: number): Promise<{ attempts: number; windowStartedAt: number } | null> {
   const now = Date.now()
-  return env.DB.prepare(
+  const normalizedKey = key.slice(0, 400)
+  await env.DB.prepare(
     `INSERT INTO auth_rate_limits (key, attempts, window_started_at) VALUES (?, 1, ?)
      ON CONFLICT(key) DO UPDATE SET
        attempts = CASE WHEN ? - window_started_at >= ? THEN 1 ELSE attempts + 1 END,
-       window_started_at = CASE WHEN ? - window_started_at >= ? THEN ? ELSE window_started_at END
-     RETURNING attempts, window_started_at AS windowStartedAt`,
-  ).bind(key.slice(0, 400), now, now, windowMs, now, windowMs, now).first<{ attempts: number; windowStartedAt: number }>()
+       window_started_at = CASE WHEN ? - window_started_at >= ? THEN ? ELSE window_started_at END`,
+  ).bind(normalizedKey, now, now, windowMs, now, windowMs, now).run()
+  return env.DB.prepare(
+    "SELECT attempts, window_started_at AS windowStartedAt FROM auth_rate_limits WHERE key = ?",
+  ).bind(normalizedKey).first<{ attempts: number; windowStartedAt: number }>()
+}
+
+function isAdminUser(env: AiEnv, userId: string): boolean {
+  return (env.ADMIN_USER_IDS || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean)
+    .includes(userId)
 }
 
 function utcMonthKey(now = new Date()): string {
@@ -203,9 +215,11 @@ async function reserveMonthlyAction(
 
 export async function hostedAiUsage(request: Request, env: AiEnv): Promise<{
   plan: "free" | "sprint" | "pro"
-  limit: number
+  isAdmin: boolean
+  unlimited: boolean
+  limit: number | null
   used: number
-  remaining: number
+  remaining: number | null
   periodKey: string
   resetsAt: string
 } | null> {
@@ -217,6 +231,7 @@ export async function hostedAiUsage(request: Request, env: AiEnv): Promise<{
      WHERE s.token_hash = ? AND s.expires_at > ?`,
   ).bind(await sha256(sessionToken), Date.now()).first<{ id: string; plan: "free" | "sprint" | "pro" }>()
   if (!user) return null
+  const isAdmin = isAdminUser(env, user.id)
 
   const now = new Date()
   const periodKey = utcMonthKey(now)
@@ -229,13 +244,15 @@ export async function hostedAiUsage(request: Request, env: AiEnv): Promise<{
     `SELECT COUNT(*) AS used FROM ai_action_reservations
      WHERE user_id = ? AND period_key = ? AND status IN ('reserved', 'committed')`,
   ).bind(user.id, periodKey).first<{ used: number }>()
-  const limit = user.plan === "free" ? 0 : HOSTED_MONTHLY_LIMITS[user.plan]
+  const limit = isAdmin ? null : user.plan === "free" ? 0 : HOSTED_MONTHLY_LIMITS[user.plan]
   const used = Math.max(0, Number(row?.used) || 0)
   return {
     plan: user.plan,
+    isAdmin,
+    unlimited: isAdmin,
     limit,
     used,
-    remaining: Math.max(0, limit - used),
+    remaining: limit === null ? null : Math.max(0, limit - used),
     periodKey,
     resetsAt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString(),
   }
@@ -294,7 +311,9 @@ export async function enforceAiQuota(
     if (!user) return text("Sign in with a verified account to use hosted AI", 401)
     if (!user.emailVerifiedAt) return text("Verify your email to use hosted AI", 403)
 
-    if (user.plan === "free") return text("Hosted AI requires Career Sprint or Pro", 403)
+    const isAdmin = isAdminUser(env, user.id)
+    if (!isAdmin && user.plan === "free") return text("Hosted AI requires Career Sprint or Pro", 403)
+    const paidPlan = user.plan === "sprint" || user.plan === "pro" ? user.plan : null
 
     const burst = await incrementQuota(env, `ai:hosted:burst:${user.id}`, HOSTED_BURST_WINDOW_MS)
     if (!burst) return text("AI quota unavailable", 503)
@@ -303,7 +322,10 @@ export async function enforceAiQuota(
       return text("Too many AI requests", 429, { "Retry-After": String(retryAfter) })
     }
 
-    const limit = HOSTED_MONTHLY_LIMITS[user.plan]
+    if (isAdmin) return null
+    if (!paidPlan) return text("Hosted AI requires Career Sprint or Pro", 403)
+
+    const limit = HOSTED_MONTHLY_LIMITS[paidPlan]
     const reservation = await reserveMonthlyAction(env, user.id, limit)
     if (!reservation) return text("Hosted AI monthly allowance reached", 429, { "Retry-After": String(secondsUntilNextUtcMonth()) })
     return reservation
