@@ -9,7 +9,7 @@ const PLANS = [
     price: "$0",
     cadence: "forever",
     description: "Build one strong resume and see where it needs work.",
-    features: ["1 active resume", "3 ATS-safe templates", "3 PDF or Word exports each month", "5 local ATS checks each month", "Browser storage and manual backup"],
+    features: ["1 active resume", "3 ATS-safe templates", "3 PDF or Word exports each month", "5 private local ATS checks each month", "Hosted AI analysis and writing not included"],
     action: "Create free account",
     onClick: () => navigate("/signup"),
   },
@@ -18,11 +18,12 @@ const PLANS = [
     name: "Career Sprint",
     price: "$15",
     cadence: "30 days · no renewal",
-    description: "A focused toolkit for an active application cycle.",
+    description: "A focused paid AI toolkit for an active application cycle.",
     features: [
       "5 job-specific resume versions",
       "Expanded local ATS checks",
-      "40 hosted AI actions during the 30-day pass",
+      "40 Cloudflare-hosted AI actions during the 30-day pass",
+      "AI job match, tailoring, rewriting, cover letters, and interview prep",
       "All templates and unlimited PDF/Word exports",
       "Interview tools and 30-day cloud sync when available",
     ],
@@ -35,11 +36,12 @@ const PLANS = [
     name: "Pro",
     price: "$24",
     cadence: "per month",
-    description: "The complete workspace for a longer or multi-role search.",
+    description: "The complete paid AI workspace for a longer or multi-role search.",
     features: [
       "Unlimited resumes, jobs, and applications",
       "Hosted parser testing when available",
-      "150 hosted AI actions each month",
+      "150 Cloudflare-hosted AI actions each month",
+      "AI job match, tailoring, rewriting, cover letters, and interview prep",
       "Version history and multi-device sync when available",
       "Priority support and 25 active share links",
     ],
@@ -53,7 +55,7 @@ const COMPARISON = [
   { feature: "Templates", free: "3 ATS-safe", sprint: "All 9", pro: "All 9" },
   { feature: "PDF or Word exports", free: "3 / month", sprint: "Unlimited", pro: "Unlimited" },
   { feature: "Local ATS checks", free: "5 / month", sprint: "Expanded", pro: "Expanded" },
-  { feature: "Hosted AI actions", free: "—", sprint: "40 at launch", pro: "150 / month at launch" },
+  { feature: "Hosted AI job match and writing", free: "Not included", sprint: "40 actions / 30 days", pro: "150 actions / month" },
   { feature: "Cloud sync", free: "—", sprint: "30 days planned", pro: "Planned" },
   { feature: "Version history", free: "Current", sprint: "30 days planned", pro: "1 year planned" },
 ]
@@ -62,6 +64,10 @@ const FAQS = [
   {
     question: "Is ResuMate still free?",
     answer: "Yes. The free tier includes one resume, three ATS-safe templates, five local ATS checks each month, and three PDF or Word exports each month.",
+  },
+  {
+    question: "Which resume analysis is paid?",
+    answer: "The transparent local ATS and job-description check is included with Free. Cloudflare-hosted AI analysis, tailoring, rewriting, cover letters, and interview preparation require Career Sprint or Pro.",
   },
   {
     question: "Is hosted ATS parsing live?",
@@ -89,7 +95,7 @@ const FAQS = [
   },
   {
     question: "Is my resume used to train AI models?",
-    answer: "ResuMate sends only the text needed for an online AI request you initiate. Provider data handling will be disclosed before launch; ordinary editing and local ATS checks remain in your browser.",
+    answer: "Ordinary editing and local ATS checks remain in your browser. When a paid user starts a hosted AI action, ResuMate sends only the resume and job text needed for that request through its protected Cloudflare Workers AI boundary.",
   },
 ]
 
@@ -131,7 +137,7 @@ export function Pricing() {
         <span className="pricing-status">Live pricing</span>
         <h1>Pay for the search,<br />not another forever subscription.</h1>
         <p>
-          Start free, then choose a 30-day Career Sprint or monthly Pro plan when you need more.
+          Start with private local checks for free. Choose Career Sprint or Pro when you want hosted AI analysis and writing tools.
         </p>
         <a className="pricing-jump" href="#compare">Compare every limit ↓</a>
       </header>
@@ -190,6 +196,18 @@ export function Pricing() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="pricing-section" aria-labelledby="paid-ai-title">
+        <div className="pricing-section-head">
+          <span>Paid AI upgrade</span>
+          <h2 id="paid-ai-title">Free checks stay local. Hosted AI starts with Career Sprint.</h2>
+        </div>
+        <p className="pricing-honesty">
+          The Free plan provides explainable keyword, structure, and job-description matching in your browser.
+          Career Sprint and Pro add Cloudflare-hosted AI for deeper match feedback, resume tailoring, bullet and
+          summary rewrites, proofreading, cover letters, recruiter outreach, and interview preparation.
+        </p>
       </section>
 
       <section className="ats-lab">

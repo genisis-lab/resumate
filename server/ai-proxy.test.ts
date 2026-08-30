@@ -241,4 +241,25 @@ describe("AI proxy boundary", () => {
     expect(response.headers.get("Retry-After")).toBeTruthy()
     expect(fetchMock).not.toHaveBeenCalled()
   })
+
+  it("gives an allowlisted admin unlimited hosted actions while retaining the burst guard", async () => {
+    const valid = {
+      score: 86,
+      matchedKeywords: ["React"],
+      missingKeywords: [],
+      suggestions: [],
+      summary: "Strong match.",
+    }
+    const db = quotaDb({ plan: "free" })
+    const run = vi.fn(async () => ({ response: valid }))
+    const response = await invoke(analyze, request("/api/analyze", {
+      resumeText: "Resume",
+      jobDescription: "Job",
+    }), { AI: { run }, DB: db, ADMIN_USER_IDS: "user-1" })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get("X-Resumate-AI-Actions-Remaining")).toBeNull()
+    expect(db.writes.some((write) => write.sql.includes("ai_action_reservations"))).toBe(false)
+    expect(db.writes.some((write) => write.sql.includes("auth_rate_limits"))).toBe(true)
+  })
 })

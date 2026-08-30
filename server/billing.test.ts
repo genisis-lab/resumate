@@ -87,7 +87,7 @@ function database() {
               return { id: USER_ID, email: "user@example.com", plan: "free", emailVerifiedAt: Date.now() }
             }
             if (sql.includes("SELECT status, current_period_end")) return null
-            if (sql.includes("INSERT INTO auth_rate_limits")) return { attempts: 1, windowStartedAt: Date.now() }
+            if (sql.includes("SELECT attempts") && sql.includes("auth_rate_limits")) return { attempts: 1, windowStartedAt: Date.now() }
             if (sql.includes("SELECT id FROM users")) return { id: USER_ID }
             if (sql.includes("SELECT internal_plan")) return { internalPlan: "pro", status: "active", currentPeriodEnd: Date.now() + 86_400_000 }
             return null
@@ -240,7 +240,7 @@ describe("inactive Whop billing boundary", () => {
         first: vi.fn(async () => {
           if (sql.includes("FROM sessions")) return { id: USER_ID, email: "user@example.com", plan: "free", emailVerifiedAt: Date.now() }
           if (sql.includes("SELECT status, current_period_end")) return null
-          if (sql.includes("INSERT INTO auth_rate_limits")) return { attempts: 6, windowStartedAt: Date.now() }
+          if (sql.includes("SELECT attempts") && sql.includes("auth_rate_limits")) return { attempts: 6, windowStartedAt: Date.now() }
           return null
         }),
         run: vi.fn(async () => ({ success: true, meta: { changes: 1 } })),
