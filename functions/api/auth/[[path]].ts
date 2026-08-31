@@ -1,9 +1,12 @@
 import { pbkdf2 } from "node:crypto"
+import { trackConversion } from "../../../server/analytics"
 
 type AuthEnv = Cloudflare.Env & {
   RESEND_API_KEY?: string
   ADMIN_USER_IDS?: string
   ADMIN_EMAILS?: string
+  TURNSTILE_SITE_KEY?: string
+  TURNSTILE_SECRET_KEY?: string
 }
 
 type UserRow = {
@@ -12,6 +15,8 @@ type UserRow = {
   name: string
   password_hash: string
   password_salt: string
+  password_hash_version: number
+  password_iterations: number
   email_verified_at: number | null
   plan: "free" | "sprint" | "pro"
   created_at: number
@@ -53,9 +58,9 @@ async function sha256(value: string): Promise<string> {
   return bytesToBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value))))
 }
 
-async function derivePassword(password: string, salt: string): Promise<string> {
+async function derivePassword(password: string, salt: string, iterations = PASSWORD_ITERATIONS): Promise<string> {
   const bits = await new Promise<Uint8Array>((resolve, reject) => {
-    pbkdf2(password, salt, PASSWORD_ITERATIONS, 32, "sha256", (error, derivedKey) => {
+    pbkdf2(password, salt, iterations, 32, "sha256", (error, derivedKey) => {
       if (error) reject(error)
       else resolve(new Uint8Array(derivedKey))
     })
@@ -92,6 +97,48 @@ function validEmail(email: string): boolean {
 
 function validPassword(password: unknown): password is string {
   return typeof password === "string" && password.length >= 10 && password.length <= 128
+}
+
+function passwordParameters(user: Pick<UserRow, "password_hash_version" | "password_iterations">): number | null {
+  if (user.password_hash_version !== 1) return null
+  if (!Number.isInteger(user.password_iterations)
+    || user.password_iterations < 10_000
+    || user.password_iterations > PASSWORD_ITERATIONS) return null
+  return user.password_iterations
+}
+
+function turnstileConfigured(env: AuthEnv): boolean {
+  return Boolean(env.TURNSTILE_SITE_KEY?.trim() && env.TURNSTILE_SECRET_KEY?.trim())
+}
+
+async function validateTurnstile(
+  request: Request,
+  env: AuthEnv,
+  token: unknown,
+  expectedAction: "signup" | "login",
+): Promise<boolean> {
+  if (!turnstileConfigured(env)) return true
+  if (typeof token !== "string" || token.length < 1 || token.length > 2_048) return false
+  const form = new FormData()
+  form.set("secret", env.TURNSTILE_SECRET_KEY!.trim())
+  form.set("response", token)
+  form.set("idempotency_key", crypto.randomUUID())
+  const remoteIp = request.headers.get("cf-connecting-ip")
+  if (remoteIp) form.set("remoteip", remoteIp)
+  try {
+    const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      body: form,
+      signal: AbortSignal.timeout(5_000),
+    })
+    if (!response.ok) return false
+    const result = await response.json() as { success?: unknown; hostname?: unknown; action?: unknown }
+    return result.success === true
+      && result.hostname === new URL(request.url).hostname
+      && result.action === expectedAction
+  } catch {
+    return false
+  }
 }
 
 function clientKey(request: Request, action: string, email = ""): string {
@@ -166,7 +213,9 @@ async function userForRequest(request: Request, env: AuthEnv): Promise<UserRow |
   if (!token) return null
   const tokenHash = await sha256(token)
   return env.DB.prepare(
-    `SELECT u.id, u.email, u.name, u.password_hash, u.password_salt, u.email_verified_at, u.plan, u.created_at
+    `SELECT u.id, u.email, u.name, u.password_hash, u.password_salt,
+            u.password_hash_version, u.password_iterations,
+            u.email_verified_at, u.plan, u.created_at
      FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = ? AND s.expires_at > ?`,
   ).bind(tokenHash, Date.now()).first<UserRow>()
@@ -235,14 +284,20 @@ async function register(request: Request, env: AuthEnv): Promise<Response> {
   if (!await allowAttempt(env, clientKey(request, "register", email), 5, 60 * 60 * 1000)) {
     return json({ error: "Too many attempts. Try again later." }, 429)
   }
+  if (!await validateTurnstile(request, env, body.turnstileToken, "signup")) {
+    return json({ error: "Complete the security check and try again." }, 403)
+  }
   const existing = await env.DB.prepare("SELECT id, email_verified_at FROM users WHERE email = ?").bind(email).first<{ id: string; email_verified_at: number | null }>()
   if (existing) return json({ error: "An account already exists for this email. Sign in or resend verification." }, 409)
   const now = Date.now()
   const id = crypto.randomUUID()
   const salt = randomToken(24)
   await env.DB.prepare(
-    "INSERT INTO users (id, email, name, password_hash, password_salt, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-  ).bind(id, email, name, await derivePassword(password, salt), salt, now, now).run()
+    `INSERT INTO users
+     (id, email, name, password_hash, password_salt, password_hash_version, password_iterations, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+  ).bind(id, email, name, await derivePassword(password, salt), salt, PASSWORD_ITERATIONS, now, now).run()
+  await trackConversion(env, "signup_completed", id)
   const emailSent = await sendVerification(request, env, { id, email, name })
   return json({ ok: true, emailSent }, emailSent ? 201 : 202)
 }
@@ -263,6 +318,7 @@ async function verify(request: Request, env: AuthEnv): Promise<Response> {
   if (Number(consumed.meta.changes) !== 1) return json({ error: "This verification link is invalid or expired." }, 400)
   await env.DB.prepare("UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?), updated_at = ? WHERE id = ?")
     .bind(now, now, record.user_id).run()
+  await trackConversion(env, "email_verified", record.user_id)
   const session = await createSession(record.user_id, env)
   return json({ ok: true }, 200, { "set-cookie": sessionCookie(session) })
 }
@@ -275,11 +331,16 @@ async function login(request: Request, env: AuthEnv): Promise<Response> {
   if (!await allowAttempt(env, clientKey(request, "login", email), 8, 15 * 60 * 1000)) {
     return json({ error: "Too many attempts. Try again in 15 minutes." }, 429)
   }
+  if (!await validateTurnstile(request, env, body?.turnstileToken, "login")) {
+    return json({ error: "Complete the security check and try again." }, 403)
+  }
   const user = await env.DB.prepare(
-    "SELECT id, email, name, password_hash, password_salt, email_verified_at, plan, created_at FROM users WHERE email = ?",
+    `SELECT id, email, name, password_hash, password_salt, password_hash_version, password_iterations,
+            email_verified_at, plan, created_at FROM users WHERE email = ?`,
   ).bind(email).first<UserRow>()
-  const candidate = user ? await derivePassword(password, user.password_salt) : await derivePassword(password, "invalid-account-salt")
-  if (!user || !constantTimeEqual(candidate, user.password_hash)) return json({ error: "Email or password is incorrect." }, 401)
+  const iterations = user ? passwordParameters(user) : PASSWORD_ITERATIONS
+  const candidate = await derivePassword(password, user?.password_salt || "invalid-account-salt", iterations || PASSWORD_ITERATIONS)
+  if (!user || !iterations || !constantTimeEqual(candidate, user.password_hash)) return json({ error: "Email or password is incorrect." }, 401)
   if (!user.email_verified_at) return json({ error: "Verify your email before signing in.", code: "EMAIL_NOT_VERIFIED" }, 403)
   const session = await createSession(user.id, env)
   return json({ user: publicUser(user, env) }, 200, { "set-cookie": sessionCookie(session) })
@@ -310,7 +371,9 @@ async function deleteAccount(request: Request, env: AuthEnv): Promise<Response> 
   const body = await bodyObject(request)
   const password = body?.password
   if (!validPassword(password)) return json({ error: "Enter your password to delete your account." }, 400)
-  const candidate = await derivePassword(password, user.password_salt)
+  const iterations = passwordParameters(user)
+  if (!iterations) return json({ error: "Password verification is unavailable. Contact support." }, 409)
+  const candidate = await derivePassword(password, user.password_salt, iterations)
   if (!constantTimeEqual(candidate, user.password_hash)) return json({ error: "Password is incorrect." }, 403)
   await env.DB.prepare("DELETE FROM users WHERE id = ?").bind(user.id).run()
   return json({ ok: true }, 200, { "set-cookie": sessionCookie("", 0) })
@@ -325,6 +388,9 @@ async function handle(request: Request, env: AuthEnv): Promise<Response> {
   if (request.method === "GET" && action === "session") {
     const user = await userForRequest(request, env)
     return json({ user: user ? publicUser(user, env) : null })
+  }
+  if (request.method === "GET" && action === "config") {
+    return json({ turnstileSiteKey: turnstileConfigured(env) ? env.TURNSTILE_SITE_KEY!.trim() : null })
   }
   if (request.method === "POST" && action === "register") return register(request, env)
   if (request.method === "POST" && action === "verify") return verify(request, env)

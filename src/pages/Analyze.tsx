@@ -8,6 +8,7 @@ import { navigate } from "../router"
 import { importResumeFromFile } from "../lib/importResume"
 import type { PlanId } from "../lib/billing"
 import { consumeUsage, usageSnapshot } from "../lib/usage"
+import { AiActionBudget } from "../components/AiActionBudget"
 
 function ScoreGauge({ score }: { score: number }) {
   const tone = score >= 80 ? "good" : score >= 60 ? "ok" : "bad"
@@ -53,12 +54,14 @@ export function Analyze({
   const [error, setError] = useState("")
   const [tailoring, setTailoring] = useState(false)
   const [tailored, setTailored] = useState<TailorResult | null>(null)
+  const [tailoredDraft, setTailoredDraft] = useState("")
   const [tailorErr, setTailorErr] = useState("")
   const [proofing, setProofing] = useState(false)
   const [issues, setIssues] = useState<string[] | null>(null)
   const [proofErr, setProofErr] = useState("")
   const [jds, setJds] = useState<SavedJD[]>(() => listJDs())
   const [, refreshUsage] = useState(0)
+  const [aiActionVersion, setAiActionVersion] = useState(0)
   const analysisResume = uploadedResume || resume
   const localAtsUsage = usageSnapshot(plan, "localAtsChecks")
 
@@ -137,6 +140,7 @@ export function Analyze({
         ? await analyzeWithAI(analysisResume, jd, targetRole)
         : analyzeLocally(analysisResume, jd, targetRole)
       setResult(res)
+      if (useAi) setAiActionVersion((value) => value + 1)
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e))
     } finally {
@@ -153,7 +157,10 @@ export function Analyze({
     setTailoring(true)
     setTailored(null)
     try {
-      setTailored(await aiTailorResume(resume, jd))
+      const next = await aiTailorResume(resume, jd)
+      setTailored(next)
+      setTailoredDraft(next.summary)
+      setAiActionVersion((value) => value + 1)
     } catch (e) {
       setTailorErr(e instanceof Error ? e.message : "Couldn't tailor your resume.")
     } finally {
@@ -162,7 +169,7 @@ export function Analyze({
   }
 
   function applyTailored() {
-    if (tailored?.summary) setResume((r) => ({ ...r, summary: tailored.summary }))
+    if (tailoredDraft.trim()) setResume((r) => ({ ...r, summary: tailoredDraft.trim() }))
     setTailored(null)
   }
 
@@ -172,6 +179,7 @@ export function Analyze({
     setIssues(null)
     try {
       setIssues(await aiProofread(resume))
+      setAiActionVersion((value) => value + 1)
     } catch (e) {
       setProofErr(e instanceof Error ? e.message : "Couldn't proofread your resume.")
     } finally {
@@ -240,6 +248,7 @@ export function Analyze({
               Optional AI review
             </button>
           </div>
+          <AiActionBudget plan={plan} refreshKey={aiActionVersion} />
           <div className="jd-actions">
             <button className="btn-secondary" disabled={tailoring} onClick={tailor} title="Use AI to tailor your resume for this job">
               {tailoring ? "Tailoring\u2026" : "\u2728 Tailor my resume"}
@@ -253,7 +262,8 @@ export function Analyze({
           {tailored && (
             <div className="tailored-box">
               <strong>Suggested summary</strong>
-              <p>{tailored.summary}</p>
+              <p className="hint-text">Edit the draft below before applying it. ResuMate never overwrites your resume without this explicit step.</p>
+              <textarea className="input textarea ai-editable-draft" rows={5} value={tailoredDraft} onChange={(event) => setTailoredDraft(event.target.value)} aria-label="Editable suggested summary" />
               {tailored.missingKeywords.length > 0 && (
                 <p className="muted small">Consider adding: {tailored.missingKeywords.join(", ")}</p>
               )}
@@ -265,7 +275,7 @@ export function Analyze({
                 </ul>
               )}
               <div className="jd-actions">
-                <button className="btn-primary small" onClick={applyTailored}>Apply summary</button>
+                <button className="btn-primary small" onClick={applyTailored}>Apply edited summary</button>
                 <button className="btn-ghost small" onClick={() => setTailored(null)}>Dismiss</button>
               </div>
             </div>

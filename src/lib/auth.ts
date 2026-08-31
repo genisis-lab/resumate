@@ -12,6 +12,8 @@ export type AccountUser = {
 
 type AuthResponse = { user?: AccountUser | null; error?: string; code?: string; ok?: boolean; emailSent?: boolean; message?: string }
 
+export type AuthConfig = { turnstileSiteKey: string | null }
+
 async function authRequest(path: string, init?: RequestInit): Promise<AuthResponse> {
   const response = await fetch(`/api/auth/${path}`, {
     credentials: "same-origin",
@@ -29,12 +31,19 @@ async function authRequest(path: string, init?: RequestInit): Promise<AuthRespon
   return data
 }
 
-export function registerAccount(name: string, email: string, password: string) {
-  return authRequest("register", { method: "POST", body: JSON.stringify({ name, email, password }) })
+export function registerAccount(name: string, email: string, password: string, turnstileToken?: string) {
+  return authRequest("register", { method: "POST", body: JSON.stringify({ name, email, password, turnstileToken }) })
 }
 
-export function loginAccount(email: string, password: string) {
-  return authRequest("login", { method: "POST", body: JSON.stringify({ email, password }) })
+export function loginAccount(email: string, password: string, turnstileToken?: string) {
+  return authRequest("login", { method: "POST", body: JSON.stringify({ email, password, turnstileToken }) })
+}
+
+export async function getAuthConfig(): Promise<AuthConfig> {
+  const response = await fetch("/api/auth/config", { credentials: "same-origin" })
+  if (!response.ok) throw new Error("Account security could not be loaded. Refresh and try again.")
+  const data = await response.json() as Partial<AuthConfig>
+  return { turnstileSiteKey: typeof data.turnstileSiteKey === "string" ? data.turnstileSiteKey : null }
 }
 
 export function verifyAccountEmail(token: string) {

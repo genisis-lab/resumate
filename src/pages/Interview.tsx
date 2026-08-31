@@ -2,13 +2,15 @@ import { useState } from "react"
 import { Resume } from "../types/resume"
 import { aiInterviewQuestions, aiRecruiterEmail, InterviewQuestion } from "../lib/ai"
 import { triggerDownload, sanitize } from "../lib/storage"
+import type { PlanId } from "../lib/billing"
+import { AiActionBudget } from "../components/AiActionBudget"
 
 const JD_KEY = "resumate.jd"
 
 // Interview prep: generates likely interview questions (with tailored answer
 // tips) and an optional recruiter outreach email, based on the resume + a
 // pasted job description. Requires an AI key (site key or BYOK in Settings).
-export function Interview({ resume }: { resume: Resume }) {
+export function Interview({ resume, plan }: { resume: Resume; plan: PlanId }) {
   const [jd, setJd] = useState<string>(() => {
     try {
       return sessionStorage.getItem(JD_KEY) || ""
@@ -21,6 +23,7 @@ export function Interview({ resume }: { resume: Resume }) {
   const [loadingQ, setLoadingQ] = useState(false)
   const [loadingE, setLoadingE] = useState(false)
   const [error, setError] = useState("")
+  const [aiActionVersion, setAiActionVersion] = useState(0)
 
   function persistJd(v: string) {
     setJd(v)
@@ -40,6 +43,7 @@ export function Interview({ resume }: { resume: Resume }) {
     setLoadingQ(true)
     try {
       setQuestions(await aiInterviewQuestions(resume, jd))
+      setAiActionVersion((value) => value + 1)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.")
     } finally {
@@ -56,6 +60,7 @@ export function Interview({ resume }: { resume: Resume }) {
     setLoadingE(true)
     try {
       setEmail(await aiRecruiterEmail(resume, jd))
+      setAiActionVersion((value) => value + 1)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.")
     } finally {
@@ -83,6 +88,8 @@ export function Interview({ resume }: { resume: Resume }) {
         />
       </label>
 
+      <AiActionBudget plan={plan} refreshKey={aiActionVersion} />
+
       <div className="row gap">
         <button className="btn-primary" disabled={loadingQ} onClick={genQuestions}>
           {loadingQ ? "Thinking\u2026" : "\u2728 Generate questions"}
@@ -101,7 +108,7 @@ export function Interview({ resume }: { resume: Resume }) {
             {questions.map((q, i) => (
               <li key={i}>
                 <div className="iq-q">{q.question}</div>
-                {q.tip && <div className="iq-tip">💡 {q.tip}</div>}
+                {q.tip && <label className="iq-tip"><span>Answer direction · edit to match your real experience</span><textarea className="input textarea" rows={3} value={q.tip} onChange={(event) => setQuestions((current) => current.map((item, index) => index === i ? { ...item, tip: event.target.value } : item))} /></label>}
               </li>
             ))}
           </ol>
@@ -124,7 +131,8 @@ export function Interview({ resume }: { resume: Resume }) {
               Download
             </button>
           </div>
-          <pre className="letter-output">{email}</pre>
+          <textarea className="cover-text recruiter-email-draft" value={email} onChange={(event) => setEmail(event.target.value)} aria-label="Editable recruiter outreach email" />
+          <p className="hint-text">Review names, claims, and tone before sending. This draft is never sent automatically.</p>
         </div>
       )}
     </div>

@@ -162,6 +162,7 @@ export function clearAllData(): void {
   safeRemove(STORE_KEY)
   safeRemove(ACTIVE_KEY)
   safeRemove("resumate.jds.v1")
+  safeRemove("resumate.applications.v1")
   safeRemove("resumate.ai.v1")
   try {
     sessionStorage.removeItem("resumate.jd")

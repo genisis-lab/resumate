@@ -8,9 +8,11 @@ export function Account({ user, onChanged }: { user: AccountUser | null; onChang
   const [deletePassword, setDeletePassword] = useState("")
   const [deleting, setDeleting] = useState(false)
   const [aiUsage, setAiUsage] = useState<{ limit: number | null; used: number; remaining: number | null; resetsAt: string; unlimited?: boolean } | null>(null)
+  const [billing, setBilling] = useState<{ plan: "sprint" | "pro"; status: string; currentPeriodEnd: number | null; cancelAtPeriodEnd: boolean; manageUrl: string } | null>(null)
   useEffect(() => {
     if (!user) {
       setAiUsage(null)
+      setBilling(null)
       return
     }
     let active = true
@@ -18,6 +20,10 @@ export function Account({ user, onChanged }: { user: AccountUser | null; onChang
       .then(async (response) => response.ok ? await response.json() as typeof aiUsage : null)
       .then((usage) => { if (active) setAiUsage(usage) })
       .catch(() => { if (active) setAiUsage(null) })
+    void fetch("/api/billing/status", { credentials: "same-origin" })
+      .then(async (response) => response.ok ? await response.json() as { subscription?: typeof billing } : null)
+      .then((result) => { if (active) setBilling(result?.subscription || null) })
+      .catch(() => { if (active) setBilling(null) })
     return () => { active = false }
   }, [user])
   if (!user) {
@@ -62,14 +68,21 @@ export function Account({ user, onChanged }: { user: AccountUser | null; onChang
               Used {aiUsage.used} · resets {new Date(aiUsage.resetsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
             </p>
           )}
-          <button className="btn-primary" onClick={() => navigate("/pricing")}>See upgrade options</button>
+          {billing && (
+            <div className="billing-summary">
+              <strong>{billing.cancelAtPeriodEnd ? "Cancellation scheduled" : "Billing active"}</strong>
+              <span>{billing.currentPeriodEnd ? `${billing.cancelAtPeriodEnd ? "Access through" : "Renews or ends"} ${new Date(billing.currentPeriodEnd).toLocaleDateString()}` : `Status: ${billing.status.replace(/_/g, " ")}`}</span>
+              <a className="btn-primary" href={billing.manageUrl} target="_blank" rel="noreferrer">Manage billing on Whop</a>
+            </div>
+          )}
+          {!billing && <button className="btn-primary" onClick={() => navigate("/pricing")}>See upgrade options</button>}
         </section>
         <section className="account-card account-data"><span className="account-label">Resume storage</span><h2>Saved on this device</h2><p>Your existing resumes have not been uploaded. Export a backup from the editor before clearing browser data.</p><button className="btn-ghost" onClick={() => navigate("/builder")}>Open editor</button></section>
       </div>
       <section className="account-actions">
         <h2>Account controls</h2>
         {error && <p className="error" role="alert">{error}</p>}
-        <div><button className="btn-ghost" onClick={signOut}>Sign out</button><button className="btn-ghost danger" onClick={() => { setError(""); setShowDelete((value) => !value) }}>Delete account</button></div>
+        <div>{user.isAdmin && <button className="btn-primary" onClick={() => navigate("/admin")}>Open admin console</button>}<button className="btn-ghost" onClick={signOut}>Sign out</button><button className="btn-ghost danger" onClick={() => { setError(""); setShowDelete((value) => !value) }}>Delete account</button></div>
         {showDelete && (
           <div className="delete-confirmation">
             <p>Enter your password to permanently remove your account. Resumes stored in this browser will not be deleted.</p>

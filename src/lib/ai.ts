@@ -6,6 +6,7 @@
 import { Resume } from "../types/resume"
 import { resumeToPlainText } from "./resumeText"
 import { aiClientOverrides } from "./byok"
+import { trackEvent } from "./analytics"
 
 export interface BulletContext {
   role?: string
@@ -30,7 +31,9 @@ async function postGenerate<T>(body: Record<string, unknown>): Promise<T> {
     const msg = await res.text().catch(() => "")
     throw new Error(`AI request failed (${res.status}). ${msg}`.trim())
   }
-  return (await res.json()) as T
+  const data = await res.json() as T
+  trackEvent("ai_action_completed")
+  return data
 }
 
 export async function aiRewriteBullets(bullets: string[], ctx: BulletContext = {}): Promise<string[]> {

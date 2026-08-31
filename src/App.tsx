@@ -15,6 +15,8 @@ import { Pricing } from "./pages/Pricing"
 import { AuthPage } from "./pages/Auth"
 import { VerifyEmail } from "./pages/VerifyEmail"
 import { Account } from "./pages/Account"
+import { Applications } from "./pages/Applications"
+import { Admin } from "./pages/Admin"
 import { useAccount } from "./lib/auth"
 import { getTheme, setTheme, loadStore } from "./lib/storage"
 import { createSampleResume } from "./data/sample"
@@ -31,6 +33,7 @@ const APP_NAV = [
   { path: "/analyze", label: "ATS Check" },
   { path: "/cover", label: "Cover Letter" },
   { path: "/interview", label: "Interview" },
+  { path: "/applications", label: "Applications" },
   { path: "/settings", label: "Settings" },
 ]
 
@@ -131,7 +134,7 @@ export default function App() {
       robots.name = "robots"
       document.head.appendChild(robots)
     }
-    robots.content = new Set(["/login", "/signup", "/verify-email", "/account"]).has(route)
+    robots.content = new Set(["/login", "/signup", "/verify-email", "/account", "/admin"]).has(route)
       ? "noindex, nofollow"
       : "index, follow"
   }, [route])
@@ -214,6 +217,7 @@ export default function App() {
             {APP_NAV.map((item) => (
               <button key={item.path} className={route === item.path ? "active" : ""} onClick={() => navigate(item.path)}>{item.label}</button>
             ))}
+            {account.user?.isAdmin && <button className={route === "/admin" ? "active" : ""} onClick={() => navigate("/admin")}>Admin</button>}
           </div>
         )}
         {isApp && (
@@ -282,8 +286,10 @@ export default function App() {
         )}
         {route === "/templates" && <Templates resume={resume} setResume={setResume} plan={effectivePlan} />}
         {route === "/analyze" && <Analyze resume={resume} setResume={setResume} plan={effectivePlan} />}
-        {route === "/cover" && <CoverLetter resume={resume} />}
-        {route === "/interview" && <Interview resume={resume} />}
+        {route === "/cover" && <CoverLetter resume={resume} plan={effectivePlan} />}
+        {route === "/interview" && <Interview resume={resume} plan={effectivePlan} />}
+        {route === "/applications" && <Applications resume={resume} />}
+        {route === "/admin" && <Admin user={account.user} />}
         {route === "/settings" && <Settings />}
         {route === "/pricing" && <Pricing />}
         {route === "/privacy" && <Privacy />}
@@ -312,6 +318,7 @@ export default function App() {
               {route === item.path && <span aria-hidden="true">✓</span>}
             </button>
           ))}
+          {account.user?.isAdmin && <button type="button" className={route === "/admin" ? "active" : ""} aria-current={route === "/admin" ? "page" : undefined} onClick={() => { setShowMobileNav(false); navigate("/admin") }}><span>Admin</span>{route === "/admin" && <span aria-hidden="true">✓</span>}</button>}
         </nav>
       </BottomSheet>
     </div>
