@@ -3,10 +3,12 @@ import { Resume } from "../types/resume"
 import { aiCoverLetter } from "../lib/ai"
 import { navigate } from "../router"
 import { triggerDownload, sanitize } from "../lib/storage"
+import type { PlanId } from "../lib/billing"
+import { AiActionBudget } from "../components/AiActionBudget"
 
 const TONES = ["professional", "enthusiastic", "concise", "warm"]
 
-export function CoverLetter({ resume }: { resume: Resume }) {
+export function CoverLetter({ resume, plan }: { resume: Resume; plan: PlanId }) {
   const [jd, setJd] = useState(() => {
     try {
       return sessionStorage.getItem("resumate.jd") || ""
@@ -19,6 +21,7 @@ export function CoverLetter({ resume }: { resume: Resume }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [copied, setCopied] = useState(false)
+  const [aiActionVersion, setAiActionVersion] = useState(0)
 
   function onJd(v: string) {
     setJd(v)
@@ -39,6 +42,7 @@ export function CoverLetter({ resume }: { resume: Resume }) {
     try {
       const out = await aiCoverLetter(resume, jd, tone)
       setText(out)
+      setAiActionVersion((value) => value + 1)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't generate a cover letter.")
     } finally {
@@ -90,6 +94,7 @@ export function CoverLetter({ resume }: { resume: Resume }) {
               {loading ? "Writing…" : "✨ Generate"}
             </button>
           </div>
+          <AiActionBudget plan={plan} refreshKey={aiActionVersion} />
           {error && <p className="error">{error}</p>}
           <p className="hint-text">This sends the selected resume and job description through ResuMate's serverless proxy to your configured AI provider. If no key is configured, the ATS check still works offline.</p>
         </div>
@@ -113,6 +118,7 @@ export function CoverLetter({ resume }: { resume: Resume }) {
                 onChange={(e) => setText(e.target.value)}
                 aria-label="Generated cover letter"
               />
+              <p className="hint-text">AI output is a draft. Your edits are kept here and nothing is written into your resume automatically.</p>
             </div>
           )}
         </div>

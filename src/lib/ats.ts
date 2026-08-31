@@ -1,6 +1,7 @@
 import { Resume } from "../types/resume"
 import { resumeToPlainText, wordCount } from "./resumeText"
 import { aiClientOverrides } from "./byok"
+import { trackEvent } from "./analytics"
 
 export interface AtsSuggestion {
   section: string
@@ -299,6 +300,7 @@ export async function analyzeWithAI(
     throw new Error(`AI analysis unavailable (${res.status}). ${msg}`)
   }
   const data = (await res.json()) as Partial<AtsResult>
+  trackEvent("ai_action_completed")
   return {
     score: clampScore(data.score),
     matchedKeywords: stringList(data.matchedKeywords),

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { trackEvent } from "../lib/analytics"
 
 const FAQS = [
   {
@@ -74,6 +75,7 @@ function TaglineReveal() {
 
 export function Landing({ onStartBlank, onStartSample, onCreateAccount }: { onStartBlank: () => void; onStartSample: () => void; onCreateAccount: () => void }) {
   useEffect(() => {
+    trackEvent("landing_view")
     const items = Array.from(document.querySelectorAll<HTMLElement>(".home-page [data-reveal]"))
     if (!items.length) return
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches

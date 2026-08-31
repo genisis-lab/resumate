@@ -1,6 +1,7 @@
 import { unwrapWebhook } from "@whop/sdk/helpers"
 
 import { MAX_REQUEST_BYTES, json, text } from "./ai-proxy"
+import { trackConversion } from "./analytics"
 
 export type InternalPaidPlan = "sprint" | "pro"
 
@@ -120,6 +121,8 @@ export async function createWhopCheckout(
     return text("Too many checkout attempts. Try again later.", 429, { "Retry-After": String(retryAfter) })
   }
 
+  await trackConversion(env, "checkout_started", user.id, { plan })
+
   const planId = config.planIds[plan]
   const origin = new URL(request.url).origin
   const upstream = await fetch(`${WHOP_API}/checkout_configurations`, {
@@ -161,6 +164,7 @@ export async function createWhopCheckout(
     || typeof purchaseUrl !== "string" || !safeWhopPurchaseUrl(purchaseUrl)) {
     return text("Checkout returned an invalid response", 502)
   }
+  await trackConversion(env, "checkout_created", user.id, { plan })
   return json({
     provider: "whop",
     checkoutId,
@@ -397,11 +401,24 @@ export async function processWhopWebhook(request: Request, env: BillingEnv): Pro
       env.DB.prepare(
         "UPDATE billing_webhook_events SET processed_at = ? WHERE provider = 'whop' AND event_id = ?",
       ).bind(now, eventId),
+      env.DB.prepare(
+        "DELETE FROM billing_webhook_failures WHERE provider = 'whop' AND event_id = ?",
+      ).bind(eventId),
     ])
+    if (eventType === "membership.activated" && grantedPlan !== "free") {
+      await trackConversion(env, "purchase_activated", userId, { plan: grantedPlan })
+    }
   } catch (error) {
     await env.DB.prepare(
       "DELETE FROM billing_webhook_events WHERE provider = 'whop' AND event_id = ? AND processed_at IS NULL",
     ).bind(eventId).run()
+    await env.DB.prepare(
+      `INSERT INTO billing_webhook_failures
+       (provider, event_id, event_type, error_code, created_at)
+       VALUES ('whop', ?, ?, ?, ?)
+       ON CONFLICT(provider, event_id) DO UPDATE SET
+         error_code = excluded.error_code, created_at = excluded.created_at, resolved_at = NULL`,
+    ).bind(eventId, eventType, error instanceof Error ? error.name.slice(0, 80) : "unknown", Date.now()).run()
     throw error
   }
   return new Response(null, { status: 204 })
