@@ -29,6 +29,7 @@ const TEMPLATES: { id: TemplateId; label: string }[] = [
   { id: "executive", label: "Executive" },
   { id: "compact", label: "Compact" },
   { id: "technical", label: "Technical" },
+  { id: "professional", label: "Professional Serif" },
 ]
 
 const DENSITIES: { id: Density; label: string }[] = [

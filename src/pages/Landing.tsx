@@ -194,7 +194,7 @@ export function Landing({ onStartBlank, onStartSample, onCreateAccount }: { onSt
 
       <section className="home-section home-template-proof" aria-labelledby="templates-title" data-reveal>
         <div className="home-template-copy">
-          <span className="home-kicker">Nine original templates</span>
+          <span className="home-kicker">Ten resume templates</span>
           <h2 id="templates-title">Formatting choices you can explain.</h2>
           <p>Choose conservative, compact, technical, or design led layouts. The practical templates use standard section labels and selectable text for common parsing workflows.</p>
           <button className="btn-ghost home-secondary-action" onClick={onStartSample}>Try a filled in sample</button>

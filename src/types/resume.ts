@@ -10,6 +10,7 @@ export type TemplateId =
   | "executive"
   | "compact"
   | "technical"
+  | "professional"
 
 export type SectionKey =
   | "summary"
