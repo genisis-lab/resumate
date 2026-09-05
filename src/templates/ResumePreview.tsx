@@ -36,11 +36,14 @@ function makeHighlighter(terms?: string[]): HL {
 
 function Contact({ r }: { r: Resume }) {
   const c = r.contact
-  const links = [c.email, c.phone, c.location, c.website, c.linkedin, c.github].filter(Boolean)
+  const professional = r.settings.template === "professional"
+  const links = (professional
+    ? [c.headline, c.location, c.phone, c.email, c.linkedin, c.github, c.website]
+    : [c.email, c.phone, c.location, c.website, c.linkedin, c.github]).filter(Boolean)
   return (
     <header className="rp-header">
       <h1 className="rp-name">{c.fullName || "Your Name"}</h1>
-      {c.headline && <p className="rp-headline">{c.headline}</p>}
+      {c.headline && !professional && <p className="rp-headline">{c.headline}</p>}
       {links.length > 0 && (
         <p className="rp-contact">
           {links.map((l, i) => (
@@ -65,7 +68,7 @@ function renderSection(key: SectionKey, r: Resume, hl: HL) {
   switch (key) {
     case "summary":
       return r.summary ? (
-        <Section key={key} title={SECTION_LABELS[key]}>
+        <Section key={key} title={r.settings.template === "professional" ? "Summary" : SECTION_LABELS[key]}>
           <p className="rp-summary">{hl(r.summary)}</p>
         </Section>
       ) : null
@@ -76,12 +79,11 @@ function renderSection(key: SectionKey, r: Resume, hl: HL) {
             <div className="rp-entry" key={e.id}>
               <div className="rp-entry-head">
                 <span className="rp-entry-title">
-                  {e.role}
-                  {e.company ? <span className="rp-at"> · {e.company}</span> : null}
+                  {r.settings.template === "professional" ? (e.company || e.role) : <>{e.role}{e.company ? <span className="rp-at"> · {e.company}</span> : null}</>}
                 </span>
-                <span className="rp-entry-date">{dateRange(e.startDate, e.endDate, e.current)}</span>
+                <span className="rp-entry-date">{r.settings.template === "professional" ? e.location : dateRange(e.startDate, e.endDate, e.current)}</span>
               </div>
-              {e.location && <div className="rp-entry-meta">{e.location}</div>}
+              {r.settings.template === "professional" ? <div className="rp-entry-head rp-entry-meta"><span>{e.role}</span><span>{dateRange(e.startDate, e.endDate, e.current)}</span></div> : e.location && <div className="rp-entry-meta">{e.location}</div>}
               {e.bullets.filter(Boolean).length > 0 && (
                 <ul className="rp-bullets">
                   {e.bullets.filter(Boolean).map((b, i) => (
@@ -100,12 +102,12 @@ function renderSection(key: SectionKey, r: Resume, hl: HL) {
             <div className="rp-entry" key={e.id}>
               <div className="rp-entry-head">
                 <span className="rp-entry-title">
-                  {[e.degree, e.field].filter(Boolean).join(" ")}
+                  {r.settings.template === "professional" ? e.school : [e.degree, e.field].filter(Boolean).join(" ")}
                 </span>
                 <span className="rp-entry-date">{dateRange(e.startDate, e.endDate)}</span>
               </div>
               <div className="rp-entry-meta">
-                {[e.school, e.location].filter(Boolean).join(" · ")}
+                {r.settings.template === "professional" ? <>{[e.degree, e.field].filter(Boolean).join(" | ")}{e.location && <div>{e.location}</div>}</> : [e.school, e.location].filter(Boolean).join(" · ")}
               </div>
               {e.details && <p className="rp-detail">{e.details}</p>}
             </div>
@@ -119,7 +121,7 @@ function renderSection(key: SectionKey, r: Resume, hl: HL) {
             {r.skills.map((g) => (
               <div className="rp-skill-row" key={g.id}>
                 {g.category && <span className="rp-skill-cat">{g.category}:</span>}{" "}
-                <span className="rp-skill-items">{hl(g.items.join(", "))}</span>
+                <span className="rp-skill-items">{hl(g.items.join(r.settings.template === "professional" ? " · " : ", "))}</span>
               </div>
             ))}
           </div>
@@ -132,8 +134,9 @@ function renderSection(key: SectionKey, r: Resume, hl: HL) {
             <div className="rp-entry" key={p.id}>
               <div className="rp-entry-head">
                 <span className="rp-entry-title">{p.name}</span>
-                {p.link && <span className="rp-entry-date">{p.link}</span>}
+                {p.link && r.settings.template !== "professional" && <span className="rp-entry-date">{p.link}</span>}
               </div>
+              {p.link && r.settings.template === "professional" && <div className="rp-project-link">{p.link}</div>}
               {p.description && <p className="rp-detail">{hl(p.description)}</p>}
               {p.bullets.filter(Boolean).length > 0 && (
                 <ul className="rp-bullets">
@@ -151,9 +154,9 @@ function renderSection(key: SectionKey, r: Resume, hl: HL) {
         <Section key={key} title={SECTION_LABELS[key]}>
           {r.certifications.map((c) => (
             <div className="rp-cert" key={c.id}>
-              <span className="rp-entry-title">{c.name}</span>
+              <span><span className="rp-entry-title">{c.name}</span>{r.settings.template === "professional" && c.issuer && <> | {c.issuer}</>}</span>
               <span className="rp-entry-meta">
-                {[c.issuer, c.date].filter(Boolean).join(" · ")}
+                {r.settings.template === "professional" ? c.date : [c.issuer, c.date].filter(Boolean).join(" · ")}
               </span>
             </div>
           ))}

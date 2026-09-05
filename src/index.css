@@ -1671,3 +1671,18 @@ kbd {
   .modal { max-width: 100%; }
   .verb-group-name { width: 100%; }
 }
+
+/* Premium screenshot-inspired layout; works in the existing PDF print flow. */
+.tpl-professional { font-family: Arial, Helvetica, sans-serif; color: #333; }
+.tpl-professional .rp-name { font-family: Georgia, 'Times New Roman', serif; font-size: 2.6em; font-weight: 500; }
+.tpl-professional .rp-headline { font-weight: 400; color: #333; }
+.tpl-professional .rp-section-title { font-family: Georgia, 'Times New Roman', serif; font-size: 1.2em; font-weight: 400; text-transform: none; letter-spacing: 0; border-bottom: 1px solid #aaa; color: #111; }
+.tpl-professional .rp-entry-meta { font-size: 1em; font-style: normal; margin-top: 3px; }
+.tpl-professional .rp-entry-date { font-size: 1em; }
+.tpl-professional .rp-section { margin-top: 26px; }
+.tpl-professional .rp-contact { font-size: 1em; gap: 2px 8px; }
+.tpl-professional .rp-contact span:not(:last-child)::after { content: '|'; color: #555; margin-left: 8px; }
+.tpl-professional .rp-project-link { font-weight: 600; overflow-wrap: anywhere; }
+.tpl-professional .rp-cert .rp-entry-meta { margin-top: 0; white-space: nowrap; }
+.tpl-professional .rp-entry-head > :first-child { min-width: 0; overflow-wrap: anywhere; }
+.tpl-professional .rp-entry-head > :last-child { flex-shrink: 0; }

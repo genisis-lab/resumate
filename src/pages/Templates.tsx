@@ -6,6 +6,7 @@ import type { PlanId } from "../lib/billing"
 import { canUseTemplate } from "../lib/usage"
 
 const TEMPLATES: { id: TemplateId; label: string; desc: string }[] = [
+  { id: "professional", label: "Professional Serif", desc: "Serif headings, a clean sans-serif body, and company-first experience. A traditional layout for detailed resumes." },
   { id: "modern", label: "Modern", desc: "Polished with a subtle accent color. Great all-rounder." },
   { id: "classic", label: "Classic", desc: "Traditional serif headings for corporate roles." },
   { id: "minimal", label: "Minimal", desc: "Lots of whitespace, lightweight and clean." },
