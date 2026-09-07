@@ -1,7 +1,7 @@
 import React from "react"
 import { aiRewriteBullets } from "../lib/ai"
 import { scoreBullet } from "../lib/writingCoach"
-import { suggestVerbsFor, ACTION_VERBS } from "../lib/actionVerbs"
+import { ACTION_VERBS } from "../lib/actionVerbs"
 
 export function TextField({
   label,
@@ -62,7 +62,6 @@ export function TextArea({
   )
 }
 
-const LEVEL_LABEL: Record<string, string> = { weak: "Needs work", ok: "Good", strong: "Strong" }
 
 export function BulletEditor({
   bullets,
@@ -71,8 +70,19 @@ export function BulletEditor({
 }: {
   bullets: string[]
   onChange: (b: string[]) => void
-  aiContext?: { role?: string; company?: string }
+  aiContext?: { role?: string; company?: string; current?: boolean }
 }) {
+  const bulletRoot = React.useRef<HTMLDivElement>(null)
+  const pendingFocus = React.useRef<number | null>(null)
+  React.useEffect(() => {
+    if (pendingFocus.current === null) return
+    const input = bulletRoot.current?.querySelectorAll<HTMLTextAreaElement>('textarea')[pendingFocus.current]
+    input?.focus({ preventScroll: true })
+    input?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    pendingFocus.current = null
+  }, [bullets.length])
+  const latest = React.useRef(bullets)
+  latest.current = bullets
   const [busy, setBusy] = React.useState(false)
   const [err, setErr] = React.useState("")
   const [focused, setFocused] = React.useState<number | null>(null)
@@ -84,7 +94,7 @@ export function BulletEditor({
     next[i] = v
     onChange(next)
   }
-  const add = () => onChange([...bullets, ""])
+  const add = () => { pendingFocus.current = bullets.length; onChange([...bullets, ""]) }
   const remove = (i: number) => onChange(bullets.filter((_, idx) => idx !== i))
   const move = (i: number, dir: -1 | 1) => {
     const j = i + dir
@@ -94,12 +104,10 @@ export function BulletEditor({
     onChange(next)
   }
 
-  // Replace the leading word of a bullet with a stronger action verb.
+  // Verb examples start a new bullet; never destructively rewrite a sentence.
   const applyVerb = (i: number, verb: string) => {
-    const text = bullets[i] || ""
-    const rest = text.trimStart().replace(/^[A-Za-z'\u2019]+\s*/, "")
-    set(i, rest ? `${verb} ${rest}` : `${verb} `)
-    setFocused(i)
+    if (bullets[i]?.trim()) { pendingFocus.current = bullets.length; onChange([...bullets, `${verb} `]); setFocused(bullets.length) }
+    else { set(i, `${verb} `); setFocused(i) }
   }
 
   const onDrop = (target: number) => {
@@ -126,6 +134,7 @@ export function BulletEditor({
       const improved = await aiRewriteBullets(filled, aiContext || {})
       let k = 0
       const next = bullets.map((b) => (b.trim() ? improved[k++] ?? b : b))
+      if (latest.current !== bullets) { setErr("Your bullets changed while AI was working. Try again to improve the latest version."); return }
       onChange(next)
     } catch (e) {
       setErr(e instanceof Error ? e.message : "AI rewrite failed.")
@@ -135,11 +144,10 @@ export function BulletEditor({
   }
 
   return (
-    <div className="bullets">
+    <div className="bullets" ref={bulletRoot}>
       <span className="field-label">Highlights / bullet points</span>
       {bullets.map((b, i) => {
-        const sc = scoreBullet(b)
-        const verbs = sc && sc.level === "weak" ? suggestVerbsFor(b) : []
+        const sc = scoreBullet(b, aiContext)
         return (
           <div
             className={`bullet-row ${dragIndex === i ? "dragging" : ""}`}
@@ -167,17 +175,14 @@ export function BulletEditor({
                 className="field-input bullet-input"
                 rows={2}
                 value={b}
-                placeholder="Start with an action verb and quantify the impact…"
+                placeholder="Describe what you did, who or what it helped, and the outcome…"
                 onChange={(e) => set(i, e.target.value)}
                 onFocus={() => setFocused(i)}
                 aria-label={`Bullet ${i + 1}`}
               />
               {sc && (
                 <div className="bw">
-                  <span className={`bw-meter level-${sc.level}`}>
-                    <span style={{ width: `${sc.score}%` }} />
-                  </span>
-                  <span className={`bw-label level-${sc.level}`}>{LEVEL_LABEL[sc.level]}</span>
+                  <span className="bw-label">{sc.issues.length ? 'Writing checks' : 'No basic writing issues found'}</span>
                 </div>
               )}
               {sc && sc.issues.length > 0 && (
@@ -187,16 +192,7 @@ export function BulletEditor({
                   ))}
                 </ul>
               )}
-              {verbs.length > 0 && (
-                <div className="bw-verbs">
-                  <span className="bw-verbs-label">Try:</span>
-                  {verbs.map((v) => (
-                    <button type="button" className="verb-chip" key={v} onClick={() => applyVerb(i, v)}>
-                      {v}
-                    </button>
-                  ))}
-                </div>
-              )}
+
             </div>
             <div className="bullet-actions">
               <button type="button" title="Move up" aria-label="Move bullet up" onClick={() => move(i, -1)}>↑</button>
@@ -215,7 +211,7 @@ export function BulletEditor({
           <button
             type="button"
             className="btn-secondary small"
-            disabled={busy}
+            disabled={busy || !bullets.some(b => b.trim())}
             onClick={improve}
             title="Rewrite these bullets with stronger, ATS-friendly phrasing"
           >
@@ -225,7 +221,7 @@ export function BulletEditor({
       </div>
       {showBank && (
         <div className="verb-bank">
-          <p className="hint">Click a verb to begin your selected bullet with it.</p>
+          <p className="hint">Examples only: choose a verb that accurately describes your work. Clicking starts a new bullet if the selected one has text.</p>
           {Object.entries(ACTION_VERBS).map(([group, verbs]) => (
             <div className="verb-group" key={group}>
               <span className="verb-group-name">{group}</span>
@@ -251,6 +247,7 @@ export function BulletEditor({
           ))}
         </div>
       )}
+      {aiContext && !bullets.some(b => b.trim()) && <p className="hint">Add a bullet about your work before improving it with AI.</p>}
       {err && <p className="ai-error">{err}</p>}
     </div>
   )

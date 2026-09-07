@@ -9,6 +9,7 @@ import { aiClientOverrides } from "./byok"
 import { trackEvent } from "./analytics"
 
 export interface BulletContext {
+  current?: boolean
   role?: string
   company?: string
   jobDescription?: string
@@ -27,11 +28,20 @@ async function postGenerate<T>(body: Record<string, unknown>): Promise<T> {
     body: JSON.stringify({ ...body, ...aiClientOverrides() }),
   })
   if (!res.ok) {
+    const messages: Record<number, string> = {
+      400: "Add meaningful resume details before using AI.",
+      401: "Sign in to use hosted AI, or check your provider key in Settings.",
+      403: "This AI action requires an eligible plan or a valid provider key.",
+      413: "This request is too long. Try fewer bullets at a time.",
+      429: "Your AI allowance or rate limit has been reached. Try again later or check your plan.",
+    }
     if (res.status === 501) throw notEnabledError()
-    const msg = await res.text().catch(() => "")
-    throw new Error(`AI request failed (${res.status}). ${msg}`.trim())
+    throw new Error(messages[res.status] || "AI is temporarily unavailable. Your content has not changed. Please try again.")
   }
-  const data = await res.json() as T
+  if (!res.headers.get('content-type')?.includes('application/json')) throw new Error('AI returned an unexpected response. Please try again later.')
+  let data: T
+  try { data = await res.json() as T } catch { throw new Error('AI returned an unreadable response. Please try again.') }
+  if (!data || typeof data !== 'object') throw new Error('AI returned an invalid response. Please try again.')
   trackEvent("ai_action_completed")
   return data
 }
@@ -42,11 +52,13 @@ export async function aiRewriteBullets(bullets: string[], ctx: BulletContext = {
   const data = await postGenerate<{ bullets: string[] }>({
     task: "rewrite",
     bullets: clean,
+    current: ctx.current,
     role: ctx.role,
     company: ctx.company,
     jobDescription: ctx.jobDescription,
   })
-  return Array.isArray(data.bullets) && data.bullets.length ? data.bullets : bullets
+  if (!Array.isArray(data.bullets) || data.bullets.length !== clean.length || data.bullets.some(b => typeof b !== 'string' || !b.trim() || /<\/?[a-z][^>]*>/i.test(b))) throw new Error('AI returned invalid bullet text. Your content has not changed.')
+  return data.bullets
 }
 
 export async function aiQuantifyBullets(bullets: string[], ctx: BulletContext = {}): Promise<string[]> {
@@ -55,10 +67,12 @@ export async function aiQuantifyBullets(bullets: string[], ctx: BulletContext = 
   const data = await postGenerate<{ bullets: string[] }>({
     task: "quantify",
     bullets: clean,
+    current: ctx.current,
     role: ctx.role,
     company: ctx.company,
   })
-  return Array.isArray(data.bullets) && data.bullets.length ? data.bullets : bullets
+  if (!Array.isArray(data.bullets) || data.bullets.length !== clean.length || data.bullets.some(b => typeof b !== 'string' || !b.trim() || /<\/?[a-z][^>]*>/i.test(b))) throw new Error('AI returned invalid bullet text. Your content has not changed.')
+  return data.bullets
 }
 
 export async function aiTailorSummary(resume: Resume, jobDescription: string): Promise<string> {
@@ -68,16 +82,23 @@ export async function aiTailorSummary(resume: Resume, jobDescription: string): P
     jobDescription,
     currentSummary: resume.summary,
   })
-  return data.summary || resume.summary
+  if (typeof data.summary !== 'string' || !data.summary.trim() || /<\/?[a-z][^>]*>/i.test(data.summary)) throw new Error('AI returned invalid summary text. Your content has not changed.')
+  return data.summary
+}
+
+export function hasSummaryContext(resume: Resume): boolean {
+  return Boolean(resume.summary.trim() || resume.experience.some(e => e.bullets.some(b => b.trim())) || resume.projects.some(p => p.description.trim() || p.bullets.some(b => b.trim())) || resume.skills.some(g => g.items.some(s => s.trim())) || resume.education.some(e => e.degree.trim() || e.field.trim()))
 }
 
 export async function aiGenerateSummary(resume: Resume): Promise<string> {
+  if (!hasSummaryContext(resume)) throw new Error('Add experience, skills, education, or project details before writing a summary with AI.')
   const data = await postGenerate<{ summary: string }>({
     task: "summary_scratch",
     resumeText: resumeToPlainText(resume),
     currentSummary: resume.summary,
   })
-  return data.summary || resume.summary
+  if (typeof data.summary !== 'string' || !data.summary.trim() || /<\/?[a-z][^>]*>/i.test(data.summary)) throw new Error('AI returned invalid summary text. Your content has not changed.')
+  return data.summary
 }
 
 export interface TailorResult {

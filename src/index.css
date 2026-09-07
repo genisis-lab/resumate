@@ -1686,3 +1686,5 @@ kbd {
 .tpl-professional .rp-cert .rp-entry-meta { margin-top: 0; white-space: nowrap; }
 .tpl-professional .rp-entry-head > :first-child { min-width: 0; overflow-wrap: anywhere; }
 .tpl-professional .rp-entry-head > :last-child { flex-shrink: 0; }
+
+.entry-add-footer { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
