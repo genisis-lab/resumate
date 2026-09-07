@@ -191,6 +191,7 @@ export function Analyze({
     <div className="analyze">
       <div className="analyze-head">
         <button className="btn-ghost small" onClick={() => navigate("/builder")}>← Back to editor</button>
+        <button className="btn-secondary" onClick={() => navigate("/coach?mode=evidence")}>Compare job requirements with resume evidence</button>
         <h1>Job-specific resume check</h1>
         <p className="muted">Compare a resume with a real job description using a transparent, deterministic baseline. The score is guidance, not an employer's private ATS result.</p>
       </div>

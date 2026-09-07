@@ -1,3 +1,4 @@
+import { Coach } from "./pages/Coach"
 import { useEffect, useRef, useState } from "react"
 import { useResume } from "./hooks/useResume"
 import { useRoute, navigate } from "./router"
@@ -31,6 +32,7 @@ const APP_NAV = [
   { path: "/builder", label: "Editor" },
   { path: "/templates", label: "Templates" },
   { path: "/analyze", label: "ATS Check" },
+  { path: "/coach", label: "AI Coach" },
   { path: "/cover", label: "Cover Letter" },
   { path: "/interview", label: "Interview" },
   { path: "/applications", label: "Applications" },
@@ -285,6 +287,7 @@ export default function App() {
           />
         )}
         {route === "/templates" && <Templates resume={resume} setResume={setResume} plan={effectivePlan} />}
+        {route === "/coach" && <Coach resume={resume} setResume={setResume} plan={effectivePlan} />}
         {route === "/analyze" && <Analyze resume={resume} setResume={setResume} plan={effectivePlan} />}
         {route === "/cover" && <CoverLetter resume={resume} plan={effectivePlan} />}
         {route === "/interview" && <Interview resume={resume} plan={effectivePlan} />}

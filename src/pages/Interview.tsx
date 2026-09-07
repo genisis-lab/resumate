@@ -1,3 +1,4 @@
+import { navigate } from "../router"
 import { useState } from "react"
 import { Resume } from "../types/resume"
 import { aiInterviewQuestions, aiRecruiterEmail, InterviewQuestion } from "../lib/ai"
@@ -71,6 +72,7 @@ export function Interview({ resume, plan }: { resume: Resume; plan: PlanId }) {
   return (
     <div className="page narrow">
       <h1>Interview prep</h1>
+      <button className="btn-secondary" onClick={() => navigate("/coach?mode=practice")}>Open AI coach for interactive interview practice</button>
       <p className="page-sub">
         Paste the job description and get likely interview questions tailored to your resume, plus a
         ready-to-send recruiter outreach email.
