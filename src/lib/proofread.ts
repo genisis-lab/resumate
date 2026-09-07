@@ -33,7 +33,6 @@ const MISSPELLINGS: Record<string, string> = {
   leadereship: "leadership",
   proffesional: "professional",
   profesional: "professional",
-  organisation: "organization",
   liason: "liaison",
   maintainance: "maintenance",
   oppurtunity: "opportunity",
@@ -110,5 +109,19 @@ export function findProofIssues(r: Resume): string[] {
     issues.push('Lowercase "i" should be capitalized as "I".')
   }
 
+  return [...new Set([...issues, ...findTextIssues(text)])]
+}
+
+// Local checks are intentionally narrow; absence of flags is not a grammar guarantee.
+export function findTextIssues(text: string): string[] {
+  const issues: string[] = []
+  for (const [wrong, right] of Object.entries(MISSPELLINGS)) {
+    if (new RegExp(`\\b${wrong}\\b`, 'i').test(text)) issues.push(`Check spelling: “${wrong}” → “${right}”.`)
+  }
+  const repeated = text.match(/\b([a-z]+)[ \t]+\1\b/i)
+  if (repeated) issues.push(`Repeated word: “${repeated[0]}”.`)
+  if (/\b(?:has|have|had) (?:went|did|wrote|ran|took)\b/i.test(text)) issues.push('Check the verb after has/have/had: use the past participle (for example, “has written”).')
+  if (/\b(?:responsible for|focused on|tasked with) (?:manage|develop|build|lead|maintain)\b/i.test(text)) issues.push('Use an -ing form after this preposition (for example, “responsible for managing”), or rewrite as a direct action.')
+  if (/\b(?:was|were) (?:manage|develop|build|lead|maintain)\b/i.test(text)) issues.push('Check the verb form after was/were (for example, “was managing”).')
   return issues
 }

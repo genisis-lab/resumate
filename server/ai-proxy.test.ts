@@ -263,3 +263,21 @@ describe("AI proxy boundary", () => {
     expect(db.writes.some((write) => write.sql.includes("auth_rate_limits"))).toBe(true)
   })
 })
+
+it('rejects empty rewrite input before authentication or quota usage', async () => {
+  const env = defaultEnv()
+  const response = await invoke(generate, request('/api/generate', { task: 'rewrite', bullets: [' ', ''] }), env)
+  expect(response.status).toBe(400)
+  expect(env.DB.prepare).not.toHaveBeenCalled()
+})
+
+it('uses current-role context and preserves duties in rewrite instructions', async () => {
+  const fetchMock = vi.fn().mockResolvedValue(providerResponse(JSON.stringify({ bullets: ['Assist customers with billing questions.'] })))
+  vi.stubGlobal('fetch', fetchMock)
+  const response = await invoke(generate, request('/api/generate', { task: 'rewrite', current: true, role: 'Support Assistant', bullets: ['Assist customers with billing questions.'] }))
+  expect(response.status).toBe(200)
+  const payload = JSON.parse(fetchMock.mock.calls[0][1].body)
+  expect(payload.messages[0].content).toContain('present tense for ongoing duties')
+  expect(payload.messages[0].content).toContain('Do not turn assisting into leading')
+  expect(payload.messages[1].content).toContain('Support Assistant')
+})

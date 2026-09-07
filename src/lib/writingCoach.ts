@@ -1,69 +1,22 @@
-// Live writing coach - scores a single resume bullet and surfaces concrete,
-// offline (no-API) suggestions: weak phrasing, passive voice, missing metrics,
-// first-person pronouns, and length. Used by the bullet editor.
+import { findTextIssues } from './proofread'
 
-export const WEAK_OPENERS = [
-  "responsible for",
-  "responsibilities included",
-  "duties included",
-  "worked on",
-  "worked with",
-  "helped",
-  "assisted",
-  "participated in",
-  "involved in",
-  "handled",
-  "tasked with",
-  "in charge of",
-]
+export const WEAK_OPENERS = ['responsible for', 'responsibilities included', 'duties included', 'worked on', 'tasked with', 'in charge of']
+export type BulletLevel = 'weak' | 'ok' | 'strong'
+export interface BulletScore { score: number; level: BulletLevel; issues: string[] }
 
-export type BulletLevel = "weak" | "ok" | "strong"
-
-export interface BulletScore {
-  score: number
-  level: BulletLevel
-  issues: string[]
-}
-
-// Returns null for empty bullets so the UI can skip them.
-export function scoreBullet(text: string): BulletScore | null {
-  const t = (text || "").trim()
-  if (!t) return null
-  const lower = t.toLowerCase()
-  const words = t.split(/\s+/).filter(Boolean)
-  const issues: string[] = []
-  let score = 100
-
-  const weak = WEAK_OPENERS.find((w) => lower.startsWith(w) || lower.includes(w))
-  if (weak) {
-    issues.push("Weak phrasing (\"" + weak + "\") \u2014 open with a strong action verb.")
-    score -= 28
-  }
-
-  if (/\b(was|were|been|being|is|are|be)\b\s+\w+(ed|en)\b/i.test(t)) {
-    issues.push("Passive voice \u2014 rephrase so you are the one acting.")
-    score -= 16
-  }
-
-  if (!/\d/.test(t)) {
-    issues.push("No metric \u2014 add a number (%, $, count, or time saved).")
-    score -= 22
-  }
-
-  if (/\b(i|me|my|myself|we|our|us)\b/i.test(t)) {
-    issues.push("Uses first-person pronouns \u2014 drop them and lead with a verb.")
-    score -= 12
-  }
-
-  if (words.length > 32) {
-    issues.push("Very long \u2014 tighten to 1\u20132 lines.")
-    score -= 12
-  } else if (words.length < 4) {
-    issues.push("Very short \u2014 add specifics about scope and impact.")
-    score -= 10
-  }
-
-  score = Math.max(0, Math.min(100, score))
-  const level: BulletLevel = score >= 80 ? "strong" : score >= 55 ? "ok" : "weak"
-  return { score, level, issues }
+// A conservative writing checklist, not a measure of hiring quality or ATS fit.
+// Incomplete fragments are not graded; truthful responsibilities need no metric.
+export function scoreBullet(text: string, context: { current?: boolean } = {}): BulletScore | null {
+  const t = text.trim()
+  const words = t.split(/\s+/)
+  if (!t || words.length < 5) return null
+  const issues = findTextIssues(t)
+  const weak = WEAK_OPENERS.find(opener => t.toLowerCase().startsWith(opener + ' '))
+  if (weak) issues.push(`Consider naming the specific action instead of “${weak}”.`)
+  if (/^(i|we)\s/i.test(t)) issues.push('Resume bullets usually omit the subject; describe the action directly.')
+  if (/^(?:was|were)\s+\w+(?:ed|en)\s+by\b/i.test(t)) issues.push('Consider naming who performed the action.')
+  if (context.current === false && /^(manage|lead|build|develop|maintain|support|coordinate|design|deliver|analyze|provide|assist|serve)\b/i.test(t)) issues.push('This role has ended. Use past tense for work performed there.')
+  if (words.length > 40) issues.push('Consider splitting this into two focused bullets for readability.')
+  const score = Math.max(0, 100 - issues.length * 20)
+  return { score, level: issues.length === 0 ? 'strong' : issues.length === 1 ? 'ok' : 'weak', issues }
 }

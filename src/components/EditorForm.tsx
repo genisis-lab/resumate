@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Resume, SectionKey, SECTION_LABELS } from "../types/resume"
 import { uid } from "../lib/id"
 import { aiGenerateSummary } from "../lib/ai"
@@ -19,6 +19,23 @@ export function EditorForm({
   resume: Resume
   setResume: (r: Resume | ((prev: Resume) => Resume)) => void
 }) {
+  const latestResume = useRef(resume)
+  latestResume.current = resume
+  const editorRef = useRef<HTMLDivElement>(null)
+  const previousLengths = useRef<Record<string, number>>({})
+  useEffect(() => {
+    for (const key of ['experience', 'education', 'skills', 'projects', 'certifications'] as const) {
+      const count = resume[key].length
+      if (previousLengths.current[key] !== undefined && count > previousLengths.current[key]) {
+        const section = editorRef.current?.querySelector(`[data-entry-section="${key}"]`)
+        const cards = section?.querySelectorAll('.collapsible')
+        const input = cards?.[cards.length - 1]?.querySelector<HTMLElement>('input')
+        input?.focus({ preventScroll: true })
+        input?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      }
+      previousLengths.current[key] = count
+    }
+  }, [resume.experience.length, resume.education.length, resume.skills.length, resume.projects.length, resume.certifications.length])
   const update: Setter = (updater) => setResume((prev) => updater(prev))
   const [writingSummary, setWritingSummary] = useState(false)
   const [summaryErr, setSummaryErr] = useState("")
@@ -37,6 +54,7 @@ export function EditorForm({
     setWritingSummary(true)
     try {
       const s = await aiGenerateSummary(resume)
+      if (latestResume.current !== resume) { setSummaryErr("Your resume changed while AI was working. Try again to use the latest details."); return }
       update((r) => ({ ...r, summary: s }))
     } catch (e) {
       setSummaryErr(e instanceof Error ? e.message : "Couldn't write a summary.")
@@ -72,7 +90,7 @@ export function EditorForm({
   const c = resume.contact
 
   return (
-    <div className="editor">
+    <div className="editor" ref={editorRef}>
       {/* Contact */}
       <div className="editor-section">
         <h3 className="editor-section-title">Contact</h3>
@@ -108,7 +126,7 @@ export function EditorForm({
       </div>
 
       {/* Experience */}
-      <div className="editor-section">
+      <div className="editor-section" data-entry-section="experience">
         <div className="editor-section-head">
           <h3 className="editor-section-title">{SECTION_LABELS.experience}</h3>
           <button className="btn-ghost small" onClick={() => update((r) => ({ ...r, experience: [...r.experience, { id: uid("exp"), company: "", role: "", location: "", startDate: "", endDate: "", current: false, bullets: [""] }] }))}>+ Add role</button>
@@ -138,10 +156,11 @@ export function EditorForm({
             <BulletEditor bullets={e.bullets} onChange={(b) => patchExp(update, e.id, { bullets: b })} aiContext={expCtx(e)} />
           </Collapsible>
         ))}
+        {resume.experience.length > 0 && <div className="entry-add-footer"><button className="btn-ghost small" onClick={() => update((r) => ({ ...r, experience: [...r.experience, { id: uid("exp"), company: "", role: "", location: "", startDate: "", endDate: "", current: false, bullets: [""] }] }))}>+ Add role</button></div>}
       </div>
 
       {/* Education */}
-      <div className="editor-section">
+      <div className="editor-section" data-entry-section="education">
         <div className="editor-section-head">
           <h3 className="editor-section-title">{SECTION_LABELS.education}</h3>
           <button className="btn-ghost small" onClick={() => update((r) => ({ ...r, education: [...r.education, { id: uid("edu"), school: "", degree: "", field: "", location: "", startDate: "", endDate: "", details: "" }] }))}>+ Add education</button>
@@ -166,10 +185,11 @@ export function EditorForm({
             <TextArea label="Details (optional)" rows={2} value={e.details} onChange={(v) => patchEdu(update, e.id, { details: v })} placeholder="GPA, honors, relevant coursework…" />
           </Collapsible>
         ))}
+        {resume.education.length > 0 && <div className="entry-add-footer"><button className="btn-ghost small" onClick={() => update((r) => ({ ...r, education: [...r.education, { id: uid("edu"), school: "", degree: "", field: "", location: "", startDate: "", endDate: "", details: "" }] }))}>+ Add education</button></div>}
       </div>
 
       {/* Skills */}
-      <div className="editor-section">
+      <div className="editor-section" data-entry-section="skills">
         <div className="editor-section-head">
           <h3 className="editor-section-title">{SECTION_LABELS.skills}</h3>
           <button className="btn-ghost small" onClick={() => update((r) => ({ ...r, skills: [...r.skills, { id: uid("sk"), category: "", items: [] }] }))}>+ Add group</button>
@@ -187,10 +207,11 @@ export function EditorForm({
             <TextArea label="Skills" hint="comma-separated" rows={2} value={g.items.join(", ")} onChange={(v) => patchSkill(update, g.id, { items: v.split(",").map((s) => s.trim()).filter(Boolean) })} placeholder="React, TypeScript, Figma…" />
           </Collapsible>
         ))}
+        {resume.skills.length > 0 && <div className="entry-add-footer"><button className="btn-ghost small" onClick={() => update((r) => ({ ...r, skills: [...r.skills, { id: uid("sk"), category: "", items: [] }] }))}>+ Add group</button></div>}
       </div>
 
       {/* Projects */}
-      <div className="editor-section">
+      <div className="editor-section" data-entry-section="projects">
         <div className="editor-section-head">
           <h3 className="editor-section-title">{SECTION_LABELS.projects}</h3>
           <button className="btn-ghost small" onClick={() => update((r) => ({ ...r, projects: [...r.projects, { id: uid("prj"), name: "", link: "", description: "", bullets: [] }] }))}>+ Add project</button>
@@ -211,10 +232,11 @@ export function EditorForm({
             <BulletEditor bullets={p.bullets} onChange={(b) => patchProj(update, p.id, { bullets: b })} aiContext={projCtx(p)} />
           </Collapsible>
         ))}
+        {resume.projects.length > 0 && <div className="entry-add-footer"><button className="btn-ghost small" onClick={() => update((r) => ({ ...r, projects: [...r.projects, { id: uid("prj"), name: "", link: "", description: "", bullets: [] }] }))}>+ Add project</button></div>}
       </div>
 
       {/* Certifications */}
-      <div className="editor-section">
+      <div className="editor-section" data-entry-section="certifications">
         <div className="editor-section-head">
           <h3 className="editor-section-title">{SECTION_LABELS.certifications}</h3>
           <button className="btn-ghost small" onClick={() => update((r) => ({ ...r, certifications: [...r.certifications, { id: uid("cert"), name: "", issuer: "", date: "" }] }))}>+ Add certification</button>
@@ -235,6 +257,7 @@ export function EditorForm({
             </div>
           </Collapsible>
         ))}
+        {resume.certifications.length > 0 && <div className="entry-add-footer"><button className="btn-ghost small" onClick={() => update((r) => ({ ...r, certifications: [...r.certifications, { id: uid("cert"), name: "", issuer: "", date: "" }] }))}>+ Add certification</button></div>}
       </div>
 
       <CustomSectionsEditor resume={resume} setResume={setResume} />
@@ -320,7 +343,7 @@ function patchCert(update: Setter, id: string, patch: Partial<Resume["certificat
 }
 
 function expCtx(e: Resume["experience"][number]) {
-  return { role: e.role, company: e.company }
+  return { role: e.role, company: e.company, current: e.current }
 }
 function projCtx(p: Resume["projects"][number]) {
   return { role: p.name }
