@@ -1,3 +1,5 @@
+import { ReviewEdits } from "./ReviewEdits"
+import { navigate } from "../router"
 import { useEffect, useRef, useState } from "react"
 import { Resume, SectionKey, SECTION_LABELS } from "../types/resume"
 import { uid } from "../lib/id"
@@ -19,6 +21,7 @@ export function EditorForm({
   resume: Resume
   setResume: (r: Resume | ((prev: Resume) => Resume)) => void
 }) {
+  const [summaryReview, setSummaryReview] = useState<{original: string; suggestion: string} | null>(null)
   const latestResume = useRef(resume)
   latestResume.current = resume
   const editorRef = useRef<HTMLDivElement>(null)
@@ -51,11 +54,12 @@ export function EditorForm({
 
   async function writeSummary() {
     setSummaryErr("")
+    setSummaryReview(null)
     setWritingSummary(true)
     try {
       const s = await aiGenerateSummary(resume)
       if (latestResume.current !== resume) { setSummaryErr("Your resume changed while AI was working. Try again to use the latest details."); return }
-      update((r) => ({ ...r, summary: s }))
+      setSummaryReview({ original: resume.summary, suggestion: s })
     } catch (e) {
       setSummaryErr(e instanceof Error ? e.message : "Couldn't write a summary.")
     } finally {
@@ -91,6 +95,7 @@ export function EditorForm({
 
   return (
     <div className="editor" ref={editorRef}>
+      <button className="btn-secondary" onClick={() => navigate("/coach")}>AI coach · Build a role, review grammar, and check consistency</button>
       {/* Contact */}
       <div className="editor-section">
         <h3 className="editor-section-title">Contact</h3>
@@ -122,6 +127,10 @@ export function EditorForm({
           onChange={(v) => update((r) => ({ ...r, summary: v }))}
           placeholder="Results-driven [role] with X years…"
         />
+        {summaryReview && <ReviewEdits originals={[summaryReview.original]} suggestions={[summaryReview.suggestion]} onClose={() => setSummaryReview(null)} onAccept={(_, original, suggestion) => {
+          if (latestResume.current.summary !== original) return false
+          update(r => ({ ...r, summary: suggestion })); return true
+        }} />}
         {summaryErr && <p className="error-text">{summaryErr}</p>}
       </div>
 

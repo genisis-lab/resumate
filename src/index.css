@@ -1688,3 +1688,11 @@ kbd {
 .tpl-professional .rp-entry-head > :last-child { flex-shrink: 0; }
 
 .entry-add-footer { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+
+.ai-review { margin: 20px 0; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.ai-review-item { margin: 12px 0; padding: 16px; border: 1px solid var(--border); border-radius: 10px; overflow-wrap: anywhere; }
+.ai-review-item p { white-space: pre-wrap; }
+.coach-table { overflow-x: auto; margin: 20px 0; }
+.coach-table table { width: 100%; border-collapse: collapse; }
+.coach-table th, .coach-table td { text-align: left; vertical-align: top; padding: 12px; border: 1px solid var(--border); min-width: 130px; }
+.coach-table caption { text-align: left; margin-bottom: 12px; }

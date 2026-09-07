@@ -1,5 +1,6 @@
+import { ReviewEdits } from "./ReviewEdits"
 import React from "react"
-import { aiRewriteBullets } from "../lib/ai"
+import { aiCoach } from "../lib/ai"
 import { scoreBullet } from "../lib/writingCoach"
 import { ACTION_VERBS } from "../lib/actionVerbs"
 
@@ -72,6 +73,7 @@ export function BulletEditor({
   onChange: (b: string[]) => void
   aiContext?: { role?: string; company?: string; current?: boolean }
 }) {
+  const [review, setReview] = React.useState<{originals: string[]; suggestions: string[]; reasons: string[]; indices: number[]} | null>(null)
   const bulletRoot = React.useRef<HTMLDivElement>(null)
   const pendingFocus = React.useRef<number | null>(null)
   React.useEffect(() => {
@@ -128,14 +130,14 @@ export function BulletEditor({
       setErr("Add a bullet first, then let AI polish it.")
       return
     }
+    if (filled.length > 12) { setErr("Review up to 12 bullets at a time. Split long lists into separate roles or projects."); return }
     setErr("")
+    setReview(null)
     setBusy(true)
     try {
-      const improved = await aiRewriteBullets(filled, aiContext || {})
-      let k = 0
-      const next = bullets.map((b) => (b.trim() ? improved[k++] ?? b : b))
-      if (latest.current !== bullets) { setErr("Your bullets changed while AI was working. Try again to improve the latest version."); return }
-      onChange(next)
+      const response = await aiCoach('rewrite', filled.join('\n'), '', JSON.stringify(aiContext || {}))
+      if (response.items.length !== filled.length || response.items.some((item, i) => item.original !== filled[i])) throw new Error('AI returned mismatched bullets. Your content has not changed.')
+      setReview({ originals: filled, suggestions: response.items.map(i => i.suggestion), reasons: response.items.map(i => i.reason), indices: bullets.flatMap((b, i) => b.trim() ? [i] : []) })
     } catch (e) {
       setErr(e instanceof Error ? e.message : "AI rewrite failed.")
     } finally {
@@ -248,6 +250,11 @@ export function BulletEditor({
         </div>
       )}
       {aiContext && !bullets.some(b => b.trim()) && <p className="hint">Add a bullet about your work before improving it with AI.</p>}
+      {review && <ReviewEdits originals={review.originals} suggestions={review.suggestions} reasons={review.reasons} onClose={() => setReview(null)} onAccept={(i, original, suggestion) => {
+        const index = review.indices[i]
+        if (latest.current[index] !== original) return false
+        const next = [...latest.current]; next[index] = suggestion; onChange(next); return true
+      }} />}
       {err && <p className="ai-error">{err}</p>}
     </div>
   )

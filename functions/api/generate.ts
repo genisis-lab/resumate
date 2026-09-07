@@ -1,3 +1,4 @@
+import { COACH_MODES, runCoach, type CoachMode } from "../../server/coach"
 import {
   type AiEnv,
   type AiSettings,
@@ -20,6 +21,7 @@ import {
 } from "../../server/ai-proxy"
 
 type Task =
+  | "coach"
   | "rewrite"
   | "quantify"
   | "summary"
@@ -31,6 +33,7 @@ type Task =
   | "recruiter_email"
 
 const TASKS = new Set<Task>([
+  "coach",
   "rewrite",
   "quantify",
   "summary",
@@ -46,6 +49,8 @@ const MAX_CHARS = 24_000
 
 interface GenerateBody extends ClientAiOptions {
   task: Task
+  mode?: CoachMode
+  context?: string
   bullets?: string[]
   current?: boolean
   role?: string
@@ -110,7 +115,8 @@ function validateBody(body: GenerateBody): Response | null {
     || body.bullets.length > 30
     || body.bullets.some((bullet) => !validString(bullet, 2_000))
   )) return text("Invalid bullets", 400)
-  const combinedCharacters = (body.resumeText?.length || 0)
+  if (body.task === 'coach' && (!COACH_MODES.includes(body.mode as CoachMode) || (body.context !== undefined && !validString(body.context, 12000)) || !body.resumeText?.trim() || (body.mode === 'evidence' && !body.jobDescription?.trim()))) return text('Provide the source text and required coaching context', 400)
+  const combinedCharacters = (body.context?.length || 0) + (body.resumeText?.length || 0)
     + (body.jobDescription?.length || 0)
     + (body.currentSummary?.length || 0)
     + (body.bullets || []).reduce((total, bullet) => total + bullet.length, 0)
@@ -239,6 +245,7 @@ async function handle(request: Request, env: AiEnv): Promise<Response> {
     if (quota instanceof Response) return quota
 
     return await withActionReservation(quota, async () => {
+      if (body.task === "coach") return await runCoach(body.mode!, body.resumeText!, body.jobDescription || "", body.context || "", settings)
       if (body.task === "rewrite" || body.task === "quantify") return await rewriteBullets(body, settings)
       if (body.task === "summary" || body.task === "summary_scratch") return await generateSummary(body, settings)
       if (body.task === "tailor") return await tailorResume(body, settings)

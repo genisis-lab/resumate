@@ -162,3 +162,13 @@ export async function aiRecruiterEmail(resume: Resume, jobDescription: string, t
   })
   return data.text || ""
 }
+
+export type CoachMode = 'rewrite' | 'grammar' | 'role' | 'evidence' | 'practice' | 'consistency'
+export interface CoachResult { items: { original: string; suggestion: string; reason: string; category: string }[]; followUp: string }
+export async function aiCoach(mode: CoachMode, source: string, job = '', context = ''): Promise<CoachResult> {
+  if (!source.trim()) throw new Error('Add details before requesting coaching.')
+  if (mode === 'evidence' && !job.trim()) throw new Error('Paste the target job description first.')
+  const result = await postGenerate<CoachResult>({ task: 'coach', mode, resumeText: source, jobDescription: job, context })
+  if (!Array.isArray(result.items) || typeof result.followUp !== 'string' || result.items.some(item => !item || ['original', 'suggestion', 'reason', 'category'].some(key => typeof item[key as keyof typeof item] !== 'string'))) throw new Error('AI returned invalid coaching feedback.')
+  return result
+}
