@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { PREMIUM_TEMPLATE_COUNT, TEMPLATES } from "../templates/registry"
 import { BILLING_STATE, beginUpgrade, type PlanId } from "../lib/billing"
 import { navigate } from "../router"
 
@@ -24,7 +25,7 @@ const PLANS = [
       "Expanded local ATS checks",
       "40 Cloudflare-hosted AI actions during the 30-day pass",
       "AI job match, tailoring, rewriting, cover letters, and interview prep",
-      "All templates and unlimited PDF/Word exports",
+      `All ${TEMPLATES.length} templates, including ${PREMIUM_TEMPLATE_COUNT} Premium designs, and unlimited PDF/Word exports`,
       "Interview tools and 30-day cloud sync when available",
     ],
     action: "Get launch notice",
@@ -52,7 +53,7 @@ const PLANS = [
 
 const COMPARISON = [
   { feature: "Active resumes", free: "1", sprint: "5 versions", pro: "Unlimited" },
-  { feature: "Templates", free: "3 ATS-safe", sprint: "All 9", pro: "All 9" },
+  { feature: "Templates", free: "3 ATS-safe + preview all", sprint: `All ${TEMPLATES.length}`, pro: `All ${TEMPLATES.length}` },
   { feature: "PDF or Word exports", free: "3 / month", sprint: "Unlimited", pro: "Unlimited" },
   { feature: "Local ATS checks", free: "5 / month", sprint: "Expanded", pro: "Expanded" },
   { feature: "Hosted AI job match and writing", free: "Not included", sprint: "40 actions / 30 days", pro: "150 actions / month" },
@@ -63,7 +64,7 @@ const COMPARISON = [
 const FAQS = [
   {
     question: "Is ResuMate still free?",
-    answer: "Yes. The free tier includes one resume, three ATS-safe templates, five local ATS checks each month, and three PDF or Word exports each month.",
+    answer: "Yes. The free tier includes one resume, three ATS-safe templates, five local ATS checks each month, and three PDF or Word exports each month. You can preview every Premium template on your own resume before deciding to upgrade.",
   },
   {
     question: "Which resume analysis is paid?",

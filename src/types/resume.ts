@@ -11,6 +11,13 @@ export type TemplateId =
   | "compact"
   | "technical"
   | "professional"
+  | "sidebar"
+  | "elegant"
+  | "timeline"
+  | "swiss"
+  | "bold"
+  | "developer"
+  | "monogram"
 
 export type SectionKey =
   | "summary"
@@ -91,13 +98,16 @@ export interface CustomSection {
 }
 
 export type Density = "compact" | "cozy" | "roomy"
+export type PaperSize = "letter" | "a4"
 
 export interface ResumeSettings {
   template: TemplateId
   accent: string
-  fontScale: number // 0.9 - 1.15
+  fontScale: number // 0.8 - 1.15
   // Optional vertical spacing preset. Undefined behaves like "cozy".
   density?: Density
+  // Optional page size for preview and PDF export. Undefined behaves like "letter".
+  paperSize?: PaperSize
   sectionOrder: SectionKey[]
   hidden: SectionKey[]
 }

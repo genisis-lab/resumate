@@ -1,0 +1,292 @@
+/* ============================================================
+   RESUME PAPER — shared by the live preview, thumbnails, and PDF export.
+   The paper is always rendered at its real printed size (96 DPI CSS px)
+   and scaled by .paper-zoom, so preview line breaks match the PDF.
+   ============================================================ */
+.resume-paper {
+  --page-w: 816px;
+  --page-h: 1056px;
+  --pad-y: 48px;
+  --pad-x: 52px;
+  --ink: #1a1a1a;
+  --ink-soft: #444;
+  --ink-muted: #666;
+  --rule: #d9dde3;
+  --accent-soft: color-mix(in srgb, var(--accent, #2563eb) 9%, #fff);
+  position: relative;
+  box-sizing: border-box;
+  width: var(--page-w);
+  min-height: var(--page-h);
+  margin: 0 auto;
+  padding: var(--pad-y) var(--pad-x);
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--rp-font, Manrope, "Helvetica Neue", Arial, sans-serif);
+  font-size: calc(14px * var(--font-scale, 1));
+  line-height: 1.5;
+  text-align: left;
+  overflow-wrap: break-word;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.resume-paper.paper-a4 { --page-w: 794px; --page-h: 1123px; }
+.resume-paper *, .resume-paper *::before, .resume-paper *::after { box-sizing: border-box; }
+
+.rp-header { text-align: center; margin-bottom: 16px; }
+.rp-name { margin: 0; color: #111; font-size: 2em; line-height: 1.15; font-weight: 700; letter-spacing: -.01em; }
+.rp-headline { margin: 4px 0 0; color: var(--accent, #2563eb); font-size: 1.05em; font-weight: 600; }
+.rp-contact { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 0; margin: 8px 0 0; color: var(--ink-soft); font-size: .85em; }
+.rp-contact > span:not(.rp-contact-break):not(.rp-row-end)::after { content: "•"; margin: 0 9px; color: #b8bdc6; }
+.rp-contact-break { flex-basis: 100%; height: 0; }
+.rp-monogram { display: none; }
+
+.rp-section { margin-top: var(--rp-section, 16px); }
+.rp-section-title {
+  margin: 0 0 8px;
+  padding-bottom: 3px;
+  border-bottom: 2px solid var(--accent, #2563eb);
+  color: var(--accent, #2563eb);
+  font-size: .82em;
+  line-height: 1.4;
+  letter-spacing: .08em;
+  word-spacing: .14em;
+  text-transform: uppercase;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+.rp-summary { margin: 0; color: #333; }
+.rp-entry { margin-bottom: var(--rp-gap, 10px); break-inside: avoid; page-break-inside: avoid; }
+.rp-entry:last-child { margin-bottom: 0; }
+.rp-entry-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; break-after: avoid; }
+.rp-entry-head > :first-child { min-width: 0; }
+.rp-entry-title { color: var(--ink); font-weight: 700; }
+.rp-at { color: var(--ink-soft); font-weight: 500; }
+.rp-entry-date { flex-shrink: 0; color: var(--ink-muted); font-size: .85em; white-space: nowrap; }
+.rp-entry-meta { color: var(--ink-muted); font-size: .85em; font-style: italic; }
+.rp-bullets { margin: 6px 0 0; padding-left: 18px; }
+.rp-bullets li { margin-bottom: var(--rp-bullet, 3px); color: #333; }
+.rp-bullets li:last-child { margin-bottom: 0; }
+.rp-detail { margin: 4px 0; color: #333; font-size: .92em; }
+.rp-skill-row { margin-bottom: 4px; break-inside: avoid; }
+.rp-skill-cat { font-weight: 700; }
+.rp-cert { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 4px; break-inside: avoid; }
+.rp-link { overflow-wrap: anywhere; }
+.rp-chips { display: inline-flex; flex-wrap: wrap; gap: 4px 5px; }
+.rp-chip { display: inline-block; padding: 0 9px; border-radius: 999px; background: var(--accent-soft); color: var(--ink); font-size: .86em; line-height: 1.55; }
+/* Visually hidden, but kept in the PDF text layer so chips stay comma-separated. */
+.rp-chip-sep { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.rp-contact-list { display: grid; gap: 8px; margin: 0; font-size: .86em; }
+.rp-contact-list dt { font-size: .74em; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.rp-contact-list dd { margin: 0; overflow-wrap: anywhere; }
+mark.hl { padding: 0 2px; border-radius: 3px; background: #fde68a; color: inherit; }
+
+/* Density presets */
+.resume-paper.density-compact { --rp-gap: 7px; --rp-section: 11px; --rp-bullet: 1px; }
+.resume-paper.density-cozy { --rp-gap: 10px; --rp-section: 16px; --rp-bullet: 2px; }
+.resume-paper.density-roomy { --rp-gap: 18px; --rp-section: 26px; --rp-bullet: 6px; }
+
+/* ---------- Classic ---------- */
+.tpl-classic { --rp-font: Georgia, "Times New Roman", serif; }
+.tpl-classic .rp-section-title { border-bottom-width: 1px; border-color: #999; color: #1a1a1a; }
+.tpl-classic .rp-headline { color: #444; }
+
+/* ---------- Minimal ---------- */
+.tpl-minimal { --pad-y: 56px; --pad-x: 60px; }
+.tpl-minimal .rp-header { text-align: left; }
+.tpl-minimal .rp-contact { justify-content: flex-start; }
+.tpl-minimal .rp-name { font-weight: 600; }
+.tpl-minimal .rp-section-title { border-bottom: 0; color: #888; font-size: .72em; }
+
+/* ---------- ATS-Safe ---------- */
+.tpl-ats { --rp-font: "Liberation Serif", "Times New Roman", Georgia, serif; }
+.tpl-ats .rp-header { text-align: left; }
+.tpl-ats .rp-contact { justify-content: flex-start; }
+.tpl-ats .rp-headline { color: #1a1a1a; }
+.tpl-ats .rp-section-title { border-bottom: 1px solid #000; color: #000; letter-spacing: .04em; }
+.tpl-ats .rp-contact > span:not(.rp-contact-break):not(.rp-row-end)::after { content: "|"; color: #555; }
+
+/* ---------- Executive ---------- */
+.tpl-executive { --rp-font: Georgia, "Times New Roman", serif; }
+.tpl-executive .rp-header { padding-bottom: 14px; border-bottom: 3px double #222; text-align: left; }
+.tpl-executive .rp-contact { justify-content: flex-start; }
+.tpl-executive .rp-name { font-size: 2.15em; font-weight: 600; letter-spacing: .02em; }
+.tpl-executive .rp-headline { color: #333; }
+.tpl-executive .rp-section-title { border-bottom: 1px solid #777; color: #222; letter-spacing: .1em; }
+
+/* ---------- Compact ---------- */
+.tpl-compact { --pad-y: 40px; --pad-x: 44px; line-height: 1.36; }
+.tpl-compact .rp-header { margin-bottom: 10px; text-align: left; }
+.tpl-compact .rp-contact { justify-content: flex-start; margin-top: 3px; }
+.tpl-compact .rp-name { font-size: 1.75em; }
+.tpl-compact .rp-section-title { margin-bottom: 6px; border-bottom-width: 1px; }
+.tpl-compact .rp-entry-head { gap: 8px; }
+
+/* ---------- Technical ---------- */
+.tpl-technical .rp-header { display: grid; grid-template-columns: 1fr auto; column-gap: 18px; align-items: end; padding-bottom: 12px; border-bottom: 2px solid #1a1a1a; text-align: left; }
+.tpl-technical .rp-identity { grid-column: 1; }
+.tpl-technical .rp-contact { grid-column: 2; grid-row: 1; max-width: 250px; justify-content: flex-end; text-align: right; }
+.tpl-technical .rp-contact > span { flex-basis: 100%; }
+.tpl-technical .rp-contact > span::after { display: none; }
+.tpl-technical .rp-contact-break { display: none; }
+.tpl-technical .rp-section-title { border-bottom: 1px solid var(--accent, #2563eb); color: #1a1a1a; letter-spacing: .06em; }
+
+/* ---------- Two-Column ---------- */
+.tpl-twocolumn .rp-two { display: grid; grid-template-columns: 34% 1fr; gap: 22px; margin-top: 8px; }
+.tpl-twocolumn .rp-aside { padding-right: 18px; border-right: 1px solid #e2e2e2; }
+.tpl-twocolumn .rp-aside .rp-section { margin-top: 14px; }
+.tpl-twocolumn .rp-aside .rp-section:first-child, .tpl-twocolumn .rp-main .rp-section:first-child { margin-top: 0; }
+.tpl-twocolumn .rp-aside .rp-entry-head { flex-direction: column; gap: 0; }
+
+/* ---------- Creative ---------- */
+.tpl-creative .rp-header { margin: calc(-1 * var(--pad-y)) calc(-1 * var(--pad-x)) 18px; padding: 32px var(--pad-x) 26px; background: var(--accent, #2563eb); color: var(--accent-ink, #fff); text-align: left; }
+.tpl-creative .rp-name, .tpl-creative .rp-headline { color: var(--accent-ink, #fff); }
+.tpl-creative .rp-headline { color: color-mix(in srgb, var(--accent-ink, #fff) 90%, var(--accent, #2563eb)); }
+.tpl-creative .rp-contact { justify-content: flex-start; color: color-mix(in srgb, var(--accent-ink, #fff) 90%, var(--accent, #2563eb)); }
+.tpl-creative .rp-contact > span:not(.rp-contact-break):not(.rp-row-end)::after { color: color-mix(in srgb, var(--accent-ink, #fff) 60%, var(--accent, #2563eb)); }
+.tpl-creative .rp-section-title { letter-spacing: .06em; }
+
+/* ---------- Professional Serif ---------- */
+.tpl-professional { --rp-font: Arial, Helvetica, sans-serif; color: #333; font-size: calc(13.5px * var(--font-scale, 1)); line-height: 1.45; }
+.tpl-professional .rp-name { font-family: Georgia, "Times New Roman", serif; font-size: 2.4em; font-weight: 500; }
+.tpl-professional .rp-section { margin-top: var(--rp-section, 16px); }
+.tpl-professional .rp-section-title { border-bottom: 1px solid #aaa; color: #111; font-family: Georgia, "Times New Roman", serif; font-size: 1.12em; font-weight: 400; letter-spacing: 0; word-spacing: 0; text-transform: none; }
+.tpl-professional .rp-entry-meta { margin-top: 1px; font-size: 1em; font-style: normal; }
+.tpl-professional .rp-entry-date { font-size: 1em; }
+.tpl-professional .rp-contact { gap: 2px 0; font-size: .94em; }
+.tpl-professional .rp-contact > span:not(.rp-contact-break):not(.rp-row-end)::after { content: "|"; margin: 0 8px; color: #555; }
+.tpl-professional .rp-project-link { font-weight: 600; overflow-wrap: anywhere; }
+.tpl-professional .rp-cert .rp-entry-meta { margin-top: 0; white-space: nowrap; }
+
+/* ---------- Horizon (sidebar) ---------- */
+.tpl-sidebar { --pad-y: 40px; --pad-x: 0px; --side-w: 31%; background: linear-gradient(90deg, var(--accent, #2563eb) 0 var(--side-w), #fff var(--side-w) 100%); }
+.tpl-sidebar .rp-sheet { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); grid-template-areas: "head main" "side main"; grid-template-rows: auto 1fr; }
+.tpl-sidebar .rp-header { grid-area: head; margin: 0; padding: 4px 22px 4px 28px; color: var(--accent-ink, #fff); text-align: left; }
+.tpl-sidebar .rp-name { color: inherit; font-size: 2.05em; letter-spacing: -.02em; line-height: 1.08; }
+.tpl-sidebar .rp-headline { margin-top: 8px; color: color-mix(in srgb, var(--accent-ink, #fff) 88%, var(--accent, #2563eb)); font-size: .98em; }
+.tpl-sidebar .rp-side { grid-area: side; padding: 20px 22px 0 28px; color: var(--accent-ink, #fff); }
+.tpl-sidebar .rp-main { grid-area: main; padding: 0 44px 0 32px; }
+.tpl-sidebar .rp-main .rp-section:first-child, .tpl-sidebar .rp-side .rp-section:first-child { margin-top: 0; }
+.tpl-sidebar .rp-side .rp-section { margin-top: 22px; }
+.tpl-sidebar .rp-side .rp-section-title { border-bottom: 1px solid color-mix(in srgb, var(--accent-ink, #fff) 38%, transparent); color: var(--accent-ink, #fff); }
+.tpl-sidebar .rp-side .rp-entry-title, .tpl-sidebar .rp-side .rp-entry-meta, .tpl-sidebar .rp-side .rp-entry-date, .tpl-sidebar .rp-side .rp-detail, .tpl-sidebar .rp-side .rp-skill-cat { color: inherit; }
+.tpl-sidebar .rp-side .rp-entry-meta, .tpl-sidebar .rp-side .rp-entry-date, .tpl-sidebar .rp-contact-list dt { color: color-mix(in srgb, var(--accent-ink, #fff) 80%, var(--accent, #2563eb)); }
+.tpl-sidebar .rp-side .rp-entry-head, .tpl-sidebar .rp-side .rp-cert { flex-direction: column; gap: 0; }
+.tpl-sidebar .rp-side .rp-skill-cat { display: block; margin-bottom: 5px; color: color-mix(in srgb, var(--accent-ink, #fff) 80%, var(--accent, #2563eb)); font-size: .78em; letter-spacing: .08em; text-transform: uppercase; }
+.tpl-sidebar .rp-side .rp-skill-row { margin-bottom: 10px; }
+.tpl-sidebar .rp-side .rp-chip { background: color-mix(in srgb, var(--accent-ink, #fff) 16%, transparent); color: inherit; }
+.tpl-sidebar .rp-main .rp-section-title { border-bottom-width: 2px; }
+
+/* ---------- Elegant ---------- */
+.tpl-elegant { --rp-font: "EB Garamond", Garamond, "Times New Roman", serif; --pad-y: 50px; --pad-x: 62px; --rule: #cfc8bb; font-size: calc(14.6px * var(--font-scale, 1)); line-height: 1.45; }
+.tpl-elegant .rp-header { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--rule); }
+.tpl-elegant .rp-name { color: #1f1d1a; font-size: 2.3em; font-weight: 500; letter-spacing: .07em; word-spacing: .12em; text-transform: uppercase; }
+.tpl-elegant .rp-headline { margin-top: 6px; color: var(--accent, #2563eb); font-style: italic; font-weight: 400; letter-spacing: .02em; }
+.tpl-elegant .rp-contact { color: #4a4740; font-size: .9em; }
+.tpl-elegant .rp-contact > span:not(.rp-contact-break):not(.rp-row-end)::after { content: "·"; color: var(--ink-muted); }
+.tpl-elegant .rp-section-title { display: flex; align-items: center; gap: 14px; border: 0; color: #1f1d1a; font-size: .8em; font-weight: 600; letter-spacing: .1em; word-spacing: .2em; }
+.tpl-elegant .rp-section-title::before, .tpl-elegant .rp-section-title::after { flex: 1; height: 1px; background: var(--rule); content: ""; }
+.tpl-elegant .rp-entry-title { font-weight: 600; letter-spacing: .01em; }
+.tpl-elegant .rp-at { font-style: italic; font-weight: 400; }
+.tpl-elegant .rp-entry-date { font-size: .92em; font-variant: small-caps; letter-spacing: .05em; }
+.tpl-elegant .rp-entry-meta { font-size: .92em; }
+.tpl-elegant .rp-link { font-variant: normal; letter-spacing: 0; }
+.tpl-elegant .rp-summary { text-align: center; }
+.tpl-elegant .rp-bullets li::marker { color: var(--accent, #2563eb); }
+
+/* ---------- Timeline ---------- */
+.tpl-timeline { --rp-font: Inter, "Helvetica Neue", Arial, sans-serif; font-size: calc(13.5px * var(--font-scale, 1)); }
+.tpl-timeline .rp-header { margin-bottom: 20px; text-align: left; }
+.tpl-timeline .rp-name { font-size: 2.25em; font-weight: 800; letter-spacing: -.025em; }
+.tpl-timeline .rp-contact { justify-content: flex-start; }
+.tpl-timeline .rp-section-title { display: flex; align-items: center; gap: 10px; border: 0; color: #111; font-size: .8em; letter-spacing: .08em; }
+.tpl-timeline .rp-section-title::before { width: 18px; height: 3px; border-radius: 2px; background: var(--accent, #2563eb); content: ""; }
+.tpl-timeline :is(.rp-section-experience, .rp-section-education, .rp-section-projects) .rp-section-body { margin-left: 5px; border-left: 2px solid #e5e7eb; }
+.tpl-timeline :is(.rp-section-experience, .rp-section-education, .rp-section-projects) .rp-entry { position: relative; margin-bottom: 0; padding: 0 0 var(--rp-gap, 12px) 20px; }
+.tpl-timeline :is(.rp-section-experience, .rp-section-education, .rp-section-projects) .rp-entry:last-child { padding-bottom: 2px; }
+.tpl-timeline :is(.rp-section-experience, .rp-section-education, .rp-section-projects) .rp-entry::before { position: absolute; top: .3em; left: -7px; width: 12px; height: 12px; border: 3px solid var(--accent, #2563eb); border-radius: 50%; background: #fff; content: ""; }
+.tpl-timeline .rp-section-experience .rp-entry-head { flex-direction: column-reverse; align-items: flex-start; gap: 1px; }
+.tpl-timeline .rp-section-experience .rp-entry-date { color: var(--accent, #2563eb); font-size: .76em; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+
+/* ---------- Swiss Grid ---------- */
+.tpl-swiss { --rp-font: Inter, "Helvetica Neue", Arial, sans-serif; --pad-x: 56px; font-size: calc(13.5px * var(--font-scale, 1)); }
+.tpl-swiss .rp-header { margin-bottom: 0; padding-bottom: 18px; border-bottom: 3px solid #111; text-align: left; }
+.tpl-swiss .rp-name { font-size: 2.7em; font-weight: 800; letter-spacing: -.025em; word-spacing: .06em; line-height: 1; }
+.tpl-swiss .rp-headline { margin-top: 8px; color: #555; font-size: 1.1em; font-weight: 500; }
+.tpl-swiss .rp-contact { justify-content: flex-start; margin-top: 12px; color: #333; }
+.tpl-swiss .rp-contact > span:not(.rp-contact-break):not(.rp-row-end)::after { content: "/"; color: var(--accent, #2563eb); }
+.tpl-swiss .rp-section { display: grid; grid-template-columns: 23% minmax(0, 1fr); column-gap: 22px; margin: 0; padding: calc(var(--rp-section, 18px) * .75) 0; border-bottom: 1px solid #e3e3e3; }
+.tpl-swiss .rp-section:last-child { border-bottom: 0; }
+.tpl-swiss .rp-section-title { margin: 0; padding: 0; border: 0; color: var(--accent, #2563eb); font-size: .76em; font-weight: 700; letter-spacing: .06em; line-height: 1.95; }
+
+/* ---------- Bold ---------- */
+.tpl-bold { --rp-font: Inter, "Helvetica Neue", Arial, sans-serif; --head-font: "Space Grotesk", Inter, sans-serif; font-size: calc(13.2px * var(--font-scale, 1)); line-height: 1.46; }
+.tpl-bold .rp-header { margin-bottom: 16px; text-align: left; }
+.tpl-bold .rp-name { font-family: var(--head-font); font-size: 2.75em; font-weight: 700; letter-spacing: -.03em; word-spacing: .05em; line-height: .98; }
+.tpl-bold .rp-name::after { display: inline-block; width: .2em; height: .2em; margin-left: .08em; border-radius: 2px; background: var(--accent, #2563eb); content: ""; }
+.tpl-bold .rp-headline { margin-top: 7px; font-family: var(--head-font); font-size: .9em; letter-spacing: .08em; word-spacing: .1em; text-transform: uppercase; }
+.tpl-bold .rp-contact { justify-content: flex-start; }
+.tpl-bold .rp-section-title { display: block; width: fit-content; margin-bottom: 8px; padding: 3px 10px 2px; border: 0; border-radius: 4px; background: var(--accent, #2563eb); color: var(--accent-ink, #fff); font-family: var(--head-font); font-size: .78em; letter-spacing: .1em; }
+.tpl-bold .rp-entry-title { font-family: var(--head-font); font-size: 1.05em; }
+.tpl-bold .rp-skill-row { margin-bottom: 6px; }
+.tpl-bold .rp-skill-cat { display: block; margin-bottom: 3px; color: #555; font-size: .78em; letter-spacing: .08em; text-transform: uppercase; }
+
+/* ---------- Developer ---------- */
+.tpl-developer { --rp-font: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif; --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; font-size: calc(13.5px * var(--font-scale, 1)); }
+.tpl-developer .rp-header { padding-bottom: 14px; border-bottom: 1px dashed #c3c9d1; text-align: left; }
+.tpl-developer .rp-name { font-family: var(--mono); font-size: 2em; font-weight: 600; letter-spacing: -.03em; }
+.tpl-developer .rp-name::after { display: inline-block; width: .5em; height: .9em; margin-left: .14em; background: var(--accent, #2563eb); vertical-align: -.08em; content: ""; }
+.tpl-developer .rp-headline { font-family: var(--mono); font-size: .92em; font-weight: 400; }
+.tpl-developer .rp-contact { justify-content: flex-start; font-family: var(--mono); font-size: .76em; }
+.tpl-developer .rp-contact > span:not(.rp-contact-break):not(.rp-row-end)::after { content: "|"; color: #a3abb6; }
+.tpl-developer .rp-section-title { margin-bottom: 8px; padding: 0; border: 0; font-family: var(--mono); font-size: .95em; font-weight: 600; letter-spacing: 0; word-spacing: 0; text-transform: lowercase; }
+.tpl-developer .rp-entry-title { font-weight: 600; }
+.tpl-developer .rp-entry-date, .tpl-developer .rp-link { font-family: var(--mono); font-size: .76em; }
+.tpl-developer .rp-entry-meta { font-style: normal; }
+.tpl-developer .rp-skill-row { display: grid; grid-template-columns: 9.5em minmax(0, 1fr); gap: 12px; }
+.tpl-developer .rp-skill-cat { color: var(--accent, #2563eb); font-family: var(--mono); font-size: .9em; font-weight: 600; }
+.tpl-developer .rp-bullets li::marker { color: var(--accent, #2563eb); }
+
+/* ---------- Monogram ---------- */
+.tpl-monogram { --rp-font: Inter, "Helvetica Neue", Arial, sans-serif; --head-font: "Playfair Display", Georgia, serif; font-size: calc(13.5px * var(--font-scale, 1)); }
+.tpl-monogram .rp-header { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "mono id" "mono contact"; column-gap: 22px; align-items: center; margin: calc(-1 * var(--pad-y)) calc(-1 * var(--pad-x)) 14px; padding: 22px var(--pad-x) 18px; border-bottom: 1px solid color-mix(in srgb, var(--accent, #2563eb) 24%, #fff); background: var(--accent-soft); text-align: left; }
+.tpl-monogram .rp-identity { grid-area: id; align-self: end; }
+.tpl-monogram .rp-monogram { display: grid; grid-area: mono; width: 76px; height: 76px; place-items: center; overflow: hidden; border: 2px solid var(--accent, #2563eb); border-radius: 50%; background: #fff; }
+.tpl-monogram .rp-monogram img { display: block; width: 100%; height: 100%; }
+.tpl-monogram .rp-contact { grid-area: contact; align-self: start; justify-content: flex-start; margin-top: 6px; }
+.tpl-monogram .rp-name { font-family: var(--head-font); font-size: 2.3em; font-weight: 600; letter-spacing: -.01em; }
+.tpl-monogram .rp-section-title { border-bottom: 1px solid color-mix(in srgb, var(--accent, #2563eb) 32%, #fff); color: #1a1a1a; font-family: var(--head-font); font-size: 1.15em; font-weight: 600; letter-spacing: 0; word-spacing: 0; text-transform: none; }
+
+/* ---------- Preview frame ---------- */
+.paper-frame { width: 100%; min-width: 0; }
+.paper-zoom { position: relative; margin: 0 auto; }
+.paper-zoom > .resume-paper { box-shadow: 0 1px 3px rgba(16, 24, 40, .1), 0 12px 32px rgba(16, 24, 40, .1); }
+.page-break-guide { position: absolute; left: -12px; right: -12px; height: 0; border-top: 2px dashed color-mix(in srgb, var(--brand, #2563eb) 55%, transparent); pointer-events: none; }
+.page-break-guide span { position: absolute; top: -11px; right: 12px; padding: 1px 8px; border-radius: 999px; background: var(--brand, #2563eb); color: #fff; font: 600 11px/18px var(--font, sans-serif); }
+
+/* ============ PRINT / PDF ============ */
+@media print {
+  @page { margin: 0; }
+  body.printing .paper-frame, body.printing .paper-zoom {
+    display: block !important;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    zoom: 1 !important;
+  }
+  body.printing #resume-print-area.resume-paper {
+    width: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    /* Repeat the top/bottom page inset on every printed page. */
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+  body.printing .page-break-guide { display: none !important; }
+  /* The sidebar band is drawn as a fixed element so it repeats full height on every page. */
+  body.printing #resume-print-area.tpl-sidebar { background: #fff !important; }
+  body.printing #resume-print-area.tpl-sidebar::before { position: fixed; top: 0; bottom: 0; left: 0; width: var(--side-w); background: var(--accent, #2563eb); content: ""; }
+  body.printing #resume-print-area.tpl-sidebar .rp-sheet { position: relative; }
+  mark.hl { background: transparent; }
+}

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { toast } from "sonner"
 import { AI_PRESETS, getAiConfig, setAiConfig, clearAiConfig } from "../lib/byok"
 
 // Settings page: Bring-Your-Own-Key. Lets a visitor paste a key for one of
@@ -24,12 +25,13 @@ export function Settings() {
 
   function onSave() {
     if (!key.trim()) {
-      alert("Please paste an API key first.")
+      toast.error("Paste an API key first.")
       return
     }
     const provider = AI_PRESETS.find((p) => p.id === presetId) || AI_PRESETS[0]
     setAiConfig({ key: key.trim(), url: provider.url, model: model.trim() || provider.model })
     setSaved(true)
+    toast.success("Key saved for this browser tab")
     setTimeout(() => setSaved(false), 2500)
   }
 
@@ -37,7 +39,7 @@ export function Settings() {
     clearAiConfig()
     setKey("")
     setSaved(false)
-    alert("Your API key has been removed from this browser.")
+    toast.success("Your API key has been removed from this browser.")
   }
 
   const activePreset = AI_PRESETS.find((p) => p.id === presetId)

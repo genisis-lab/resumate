@@ -3,7 +3,8 @@ import { Resume } from "../types/resume"
 import { AtsResult, analyzeWithAI, analyzeLocally } from "../lib/ats"
 import { aiTailorResume, aiProofread, TailorResult } from "../lib/ai"
 import { listJDs, saveJD, deleteJD, SavedJD } from "../lib/jdLibrary"
-import { ResumePreview } from "../templates/ResumePreview"
+import { ResumePreview, paperSizeOf } from "../templates/ResumePreview"
+import { PaperFrame } from "../components/PaperFrame"
 import { navigate } from "../router"
 import { importResumeFromFile } from "../lib/importResume"
 import type { PlanId } from "../lib/billing"
@@ -400,7 +401,9 @@ export function Analyze({
             <button className="btn-ghost small" onClick={() => navigate("/cover")}>✍️ Generate cover letter</button>
           </div>
           <div className="hl-preview">
-            <ResumePreview resume={analysisResume} highlight={result.matchedKeywords} />
+            <PaperFrame size={paperSizeOf(analysisResume)} maxScale={0.95}>
+              <ResumePreview resume={analysisResume} highlight={result.matchedKeywords} />
+            </PaperFrame>
           </div>
         </section>
       )}

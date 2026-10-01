@@ -1,5 +1,7 @@
 import { Coach } from "./pages/Coach"
 import { useEffect, useRef, useState } from "react"
+import { Toaster } from "sonner"
+import { ChevronDown, Keyboard, Sparkles } from "lucide-react"
 import { useResume } from "./hooks/useResume"
 import { useRoute, navigate } from "./router"
 import { Landing } from "./pages/Landing"
@@ -19,25 +21,29 @@ import { Account } from "./pages/Account"
 import { Applications } from "./pages/Applications"
 import { Admin } from "./pages/Admin"
 import { useAccount } from "./lib/auth"
-import { getTheme, setTheme, loadStore } from "./lib/storage"
+import { useTheme, loadStore } from "./lib/storage"
 import { createSampleResume } from "./data/sample"
 import { readSharedResume, clearShareParam } from "./lib/share"
 import { useInstallPrompt } from "./lib/pwa"
-import { exportPdf } from "./lib/exportPdf"
+import { exportResumePdf } from "./lib/exportFlow"
 import { ShortcutsModal } from "./components/ShortcutsModal"
 import { BottomSheet } from "./components/BottomSheet"
-import { consumeUsage } from "./lib/usage"
+import { DialogHost, confirmDialog } from "./components/ui/dialogs"
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "./components/ui/menu"
+import { AI_TOOLS } from "./lib/aiTools"
 
 const APP_NAV = [
   { path: "/builder", label: "Editor" },
   { path: "/templates", label: "Templates" },
   { path: "/analyze", label: "ATS Check" },
-  { path: "/coach", label: "AI Coach" },
-  { path: "/cover", label: "Cover Letter" },
-  { path: "/interview", label: "Interview" },
+]
+
+const APP_NAV_END = [
   { path: "/applications", label: "Applications" },
   { path: "/settings", label: "Settings" },
 ]
+
+const ALL_APP_ROUTES = [...APP_NAV, ...AI_TOOLS, ...APP_NAV_END]
 
 const PUBLIC_ROUTES = new Set(["/", "/pricing", "/privacy", "/tos", "/refund", "/login", "/signup", "/verify-email", "/account"])
 
@@ -73,14 +79,11 @@ const PAGE_META: Record<string, { title: string; description: string }> = {
 }
 
 function ThemeToggle() {
-  const [theme, setT] = useState<"light" | "dark">(getTheme())
-  useEffect(() => {
-    setTheme(theme)
-  }, [theme])
+  const [theme, setTheme] = useTheme()
   return (
     <button
       className="btn-ghost small theme-toggle"
-      onClick={() => setT((t) => (t === "dark" ? "light" : "dark"))}
+      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
       title="Toggle light or dark theme"
       aria-label="Toggle light or dark theme"
     >
@@ -115,11 +118,13 @@ export default function App() {
   const sharedChecked = useRef(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showMobileNav, setShowMobileNav] = useState(false)
+  const [theme] = useTheme()
   const account = useAccount()
   const effectivePlan = account.user?.isAdmin ? "pro" : account.user?.plan ?? "free"
 
   const isApp = !PUBLIC_ROUTES.has(route)
-  const activeNavLabel = APP_NAV.find((item) => item.path === route)?.label || "current page"
+  const activeNavLabel = ALL_APP_ROUTES.find((item) => item.path === route)?.label || "current page"
+  const aiActive = AI_TOOLS.some((tool) => tool.path === route)
 
   useEffect(() => {
     const meta = PAGE_META[route]
@@ -147,16 +152,23 @@ export default function App() {
     if (sharedChecked.current) return
     sharedChecked.current = true
     const shared = readSharedResume()
-    if (shared) {
-      const ok = confirm("This link contains a shared resume. Load it as a new resume in your browser?")
-      clearShareParam()
+    if (!shared) return
+    clearShareParam()
+    void confirmDialog({
+      title: "Open this shared resume?",
+      description: effectivePlan === "free"
+        ? "It will replace the resume in your Free workspace. Download a backup first if you want to keep your current resume."
+        : "It will be added as a new resume in this browser. Nothing is uploaded.",
+      confirmLabel: "Open resume",
+      cancelLabel: "Not now",
+    }).then((ok) => {
       if (ok) {
         replaceResume(effectivePlan === "free" ? { ...shared, id: resume.id, name: resume.name } : shared)
         navigate("/builder")
       } else {
         navigate("/")
       }
-    }
+    })
   }, [account.loading, effectivePlan, replaceResume, resume.id, resume.name])
 
   // Global undo/redo keyboard shortcuts.
@@ -176,19 +188,18 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey)
   }, [undo, redo])
 
-  // App-level shortcuts: "?" opens help, Ctrl/Cmd+S exports PDF in the editor, Esc closes.
+  // App-level shortcuts: "?" opens help, Ctrl/Cmd+S or +P exports PDF in the editor, Esc closes.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const t = e.target as HTMLElement | null
       const tag = t?.tagName?.toLowerCase()
       const typing = tag === "input" || tag === "textarea" || t?.isContentEditable
       const mod = e.metaKey || e.ctrlKey
-      if (mod && e.key.toLowerCase() === "s") {
+      const key = e.key.toLowerCase()
+      if (mod && (key === "s" || key === "p") && !e.shiftKey && !e.altKey) {
         if (route === "/builder") {
           e.preventDefault()
-          const quota = consumeUsage(effectivePlan, "documentExports")
-          if (!quota.allowed) alert("The Free plan includes 3 PDF or Word exports each month. Upgrade for unlimited exports.")
-          else exportPdf(resume.contact.fullName || resume.name)
+          void exportResumePdf(resume, effectivePlan)
         }
         return
       }
@@ -203,7 +214,7 @@ export default function App() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [effectivePlan, resume.contact.fullName, resume.name, route])
+  }, [effectivePlan, resume, route])
 
   return (
     <div className="app">
@@ -217,7 +228,25 @@ export default function App() {
         {isApp && (
           <div className="nav-links">
             {APP_NAV.map((item) => (
-              <button key={item.path} className={route === item.path ? "active" : ""} onClick={() => navigate(item.path)}>{item.label}</button>
+              <button key={item.path} className={route === item.path ? "active" : ""} aria-current={route === item.path ? "page" : undefined} onClick={() => navigate(item.path)}>{item.label}</button>
+            ))}
+            <Menu>
+              <MenuTrigger asChild>
+                <button className={`nav-menu-trigger${aiActive ? " active" : ""}`} type="button">
+                  <Sparkles size={15} aria-hidden="true" /> AI tools <ChevronDown size={14} aria-hidden="true" />
+                </button>
+              </MenuTrigger>
+              <MenuContent className="menu-wide nav-ai-menu">
+                {AI_TOOLS.map((tool) => (
+                  <MenuItem key={tool.path} icon={<tool.icon size={17} />} onSelect={() => navigate(tool.path)} className={route === tool.path ? "current" : ""}>
+                    <span className="menu-title">{tool.label}{effectivePlan === "free" && <span className="menu-badge paid">Paid</span>}</span>
+                    <span className="menu-description">{tool.description}</span>
+                  </MenuItem>
+                ))}
+              </MenuContent>
+            </Menu>
+            {APP_NAV_END.map((item) => (
+              <button key={item.path} className={route === item.path ? "active" : ""} aria-current={route === item.path ? "page" : undefined} onClick={() => navigate(item.path)}>{item.label}</button>
             ))}
             {account.user?.isAdmin && <button className={route === "/admin" ? "active" : ""} onClick={() => navigate("/admin")}>Admin</button>}
           </div>
@@ -240,7 +269,7 @@ export default function App() {
             <span className="saved-pill" role="status" aria-live="polite">Saved</span>
           ) : null}
           <InstallButton />
-          {isApp && <button className="icon-btn" onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (press ?)" aria-label="Keyboard shortcuts">⌨</button>}
+          {isApp && <button className="icon-btn" onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (press ?)" aria-label="Keyboard shortcuts"><Keyboard size={17} aria-hidden="true" /></button>}
           {!isApp && <button className={`pricing-nav${route === "/pricing" ? " active" : ""}`} aria-current={route === "/pricing" ? "page" : undefined} onClick={() => navigate("/pricing")}>Pricing</button>}
           {!account.loading && account.user && (
             <button className="account-nav" onClick={() => navigate("/account")}>{account.user.name.split(" ")[0]}</button>
@@ -284,6 +313,7 @@ export default function App() {
             canUndo={canUndo}
             canRedo={canRedo}
             plan={effectivePlan}
+            planReady={!account.loading}
           />
         )}
         {route === "/templates" && <Templates resume={resume} setResume={setResume} plan={effectivePlan} />}
@@ -306,11 +336,11 @@ export default function App() {
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
       <BottomSheet open={showMobileNav} title="Go to" onClose={() => setShowMobileNav(false)}>
         <nav className="mobile-nav-menu" aria-label="App sections">
-          {APP_NAV.map((item) => (
+          {[...APP_NAV, ...AI_TOOLS, ...APP_NAV_END].map((item, index) => (
             <button
               key={item.path}
               type="button"
-              className={route === item.path ? "active" : ""}
+              className={`${route === item.path ? "active" : ""}${index === APP_NAV.length || index === APP_NAV.length + AI_TOOLS.length ? " group-start" : ""}`}
               aria-current={route === item.path ? "page" : undefined}
               onClick={() => {
                 setShowMobileNav(false)
@@ -324,6 +354,8 @@ export default function App() {
           {account.user?.isAdmin && <button type="button" className={route === "/admin" ? "active" : ""} aria-current={route === "/admin" ? "page" : undefined} onClick={() => { setShowMobileNav(false); navigate("/admin") }}><span>Admin</span>{route === "/admin" && <span aria-hidden="true">✓</span>}</button>}
         </nav>
       </BottomSheet>
+      <DialogHost />
+      <Toaster position="bottom-center" theme={theme} richColors closeButton offset={20} mobileOffset={{ bottom: 88 }} toastOptions={{ className: "app-toast" }} />
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { TEMPLATES } from "../templates/registry"
 import { trackEvent } from "../lib/analytics"
 
 const FAQS = [
@@ -194,9 +195,9 @@ export function Landing({ onStartBlank, onStartSample, onCreateAccount }: { onSt
 
       <section className="home-section home-template-proof" aria-labelledby="templates-title" data-reveal>
         <div className="home-template-copy">
-          <span className="home-kicker">Ten resume templates</span>
+          <span className="home-kicker">{TEMPLATES.length} resume templates</span>
           <h2 id="templates-title">Formatting choices you can explain.</h2>
-          <p>Choose conservative, compact, technical, or design led layouts. The practical templates use standard section labels and selectable text for common parsing workflows.</p>
+          <p>Choose conservative, compact, technical, or design-led layouts, then preview any of them on your own resume. Every template exports selectable text with standard section labels, and the preview shows exactly where each page breaks.</p>
           <button className="btn-ghost home-secondary-action" onClick={onStartSample}>Try a filled in sample</button>
         </div>
         <div className="home-template-stack" aria-hidden="true">

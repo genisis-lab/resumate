@@ -1,36 +1,31 @@
-import React, { useEffect, useMemo, useRef, useState } from "react"
-import { Resume, TemplateId } from "../types/resume"
-import { ResumePreview } from "../templates/ResumePreview"
+import React, { useMemo, useRef, useState } from "react"
+import { toast } from "sonner"
+import {
+  ChevronDown, Copy, Download, Eraser, FileDown, FileJson, FilePlus2, FileText, FileType, FileUp, FolderInput,
+  Image as ImageIcon, LayoutTemplate, Lock, Palette, PencilLine, Redo2, Save, ScanSearch, Share2, Sparkles,
+  SpellCheck, Trash2, Undo2, Wand2, ArchiveRestore, BookOpen, ChevronRight,
+} from "lucide-react"
+import { Density, PaperSize, Resume, TemplateId } from "../types/resume"
+import { ResumePreview, paperSizeOf } from "../templates/ResumePreview"
 import { EditorForm } from "../components/EditorForm"
 import { ShareModal } from "../components/ShareModal"
-import { exportPdf } from "../lib/exportPdf"
-import { exportDocx } from "../lib/exportDocx"
-import { exportResumeJSON, exportAllJSON, importAllJSON, duplicateResume, clearAllData, loadStore, deleteResume, normalizeResume } from "../lib/storage"
+import { PaperFrame } from "../components/PaperFrame"
+import { exportResumeJSON, exportAllJSON, importAllJSON, duplicateResume, clearAllData, loadStore, deleteResume, normalizeResume, resumeLabel } from "../lib/storage"
 import { exportMarkdown, exportPlainText, exportJsonResume } from "../lib/exportText"
+import { exportResumePdf, exportResumeWord } from "../lib/exportFlow"
 import { createEmptyResume, createSampleResume } from "../data/sample"
 import { importResumeFromFile } from "../lib/importResume"
 import { completeness, qualityFlags } from "../lib/quality"
-import { measurePageCount, nextFrame } from "../lib/fitPage"
+import { nextFrame, PAGE_SIZES, type PageMetrics } from "../lib/fitPage"
 import { findProofIssues, autoFixSpelling } from "../lib/proofread"
 import { fromJsonResume } from "../lib/jsonResume"
-import { Density } from "../types/resume"
 import { navigate } from "../router"
 import { BottomSheet } from "../components/BottomSheet"
 import type { PlanId } from "../lib/billing"
-import { canUseTemplate, consumeUsage, usageSnapshot } from "../lib/usage"
-
-const TEMPLATES: { id: TemplateId; label: string }[] = [
-  { id: "modern", label: "Modern" },
-  { id: "classic", label: "Classic" },
-  { id: "minimal", label: "Minimal" },
-  { id: "ats", label: "ATS-Safe" },
-  { id: "twocolumn", label: "Two-Column" },
-  { id: "creative", label: "Creative" },
-  { id: "executive", label: "Executive" },
-  { id: "compact", label: "Compact" },
-  { id: "technical", label: "Technical" },
-  { id: "professional", label: "Professional Serif" },
-]
+import { canUseTemplate, usageSnapshot, FREE_PLAN_LIMITS } from "../lib/usage"
+import { TEMPLATES, templateMeta } from "../templates/registry"
+import { Menu, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Popover, PopoverContent, PopoverTrigger } from "../components/ui/menu"
+import { confirmDialog, promptDialog } from "../components/ui/dialogs"
 
 const DENSITIES: { id: Density; label: string }[] = [
   { id: "compact", label: "Compact" },
@@ -38,17 +33,97 @@ const DENSITIES: { id: Density; label: string }[] = [
   { id: "roomy", label: "Roomy" },
 ]
 
-const ACCENTS = ["#2563eb", "#0f766e", "#7c3aed", "#be123c", "#b45309", "#111827"]
-const ACCENT_NAMES: Record<string, string> = {
-  "#2563eb": "blue",
-  "#0f766e": "teal",
-  "#7c3aed": "violet",
-  "#be123c": "rose",
-  "#b45309": "amber",
-  "#111827": "ink",
+const ACCENTS: { color: string; name: string }[] = [
+  { color: "#2563eb", name: "Blue" },
+  { color: "#1e3a5f", name: "Navy" },
+  { color: "#0f766e", name: "Teal" },
+  { color: "#047857", name: "Emerald" },
+  { color: "#7c3aed", name: "Violet" },
+  { color: "#be123c", name: "Rose" },
+  { color: "#b45309", name: "Amber" },
+  { color: "#111827", name: "Ink" },
+]
+
+type SetResume = (r: Resume | ((p: Resume) => Resume)) => void
+
+function DesignControls({ resume, setSettings, fitting, onFit, pages }: {
+  resume: Resume
+  setSettings: (patch: Partial<Resume["settings"]>) => void
+  fitting: boolean
+  onFit: () => void
+  pages: number
+}) {
+  const accent = resume.settings.accent
+  const custom = !ACCENTS.some((item) => item.color === accent)
+  return (
+    <div className="design-controls">
+      <div className="design-row">
+        <span className="design-label">Accent color</span>
+        <div className="swatches" role="radiogroup" aria-label="Accent color">
+          {ACCENTS.map((item) => (
+            <button
+              key={item.color}
+              type="button"
+              role="radio"
+              aria-checked={accent === item.color}
+              className={`swatch ${accent === item.color ? "active" : ""}`}
+              style={{ background: item.color }}
+              onClick={() => setSettings({ accent: item.color })}
+              aria-label={item.name}
+              title={item.name}
+            />
+          ))}
+          <label className={`swatch swatch-custom ${custom ? "active" : ""}`} title="Custom color" style={custom ? { background: accent } : undefined}>
+            <input type="color" value={accent} onChange={(event) => setSettings({ accent: event.target.value })} aria-label="Custom accent color" />
+            {!custom && <Palette size={13} aria-hidden="true" />}
+          </label>
+        </div>
+      </div>
+      <label className="design-row">
+        <span className="design-label">Text size <output>{Math.round(resume.settings.fontScale * 100)}%</output></span>
+        <input type="range" min={0.8} max={1.15} step={0.05} value={resume.settings.fontScale} onChange={(event) => setSettings({ fontScale: Number(event.target.value) })} />
+      </label>
+      <div className="design-row">
+        <span className="design-label">Spacing</span>
+        <div className="segmented" role="radiogroup" aria-label="Spacing">
+          {DENSITIES.map((density) => (
+            <button key={density.id} type="button" role="radio" aria-checked={(resume.settings.density || "cozy") === density.id} onClick={() => setSettings({ density: density.id })}>{density.label}</button>
+          ))}
+        </div>
+      </div>
+      <div className="design-row">
+        <span className="design-label">Paper size</span>
+        <div className="segmented" role="radiogroup" aria-label="Paper size">
+          {(Object.keys(PAGE_SIZES) as PaperSize[]).map((size) => (
+            <button key={size} type="button" role="radio" aria-checked={paperSizeOf(resume) === size} onClick={() => setSettings({ paperSize: size === "a4" ? "a4" : undefined })}>{PAGE_SIZES[size].label}</button>
+          ))}
+        </div>
+      </div>
+      <button type="button" className="btn-ghost design-fit" onClick={onFit} disabled={fitting || pages <= 1}>
+        <Wand2 size={16} aria-hidden="true" />
+        {fitting ? "Fitting…" : pages > 1 ? `Fit to one page (now ${pages})` : "Fits on one page"}
+      </button>
+    </div>
+  )
 }
 
-const swatchStyle = (color: string): React.CSSProperties => ({ background: color })
+function TemplateItems({ plan }: { plan: PlanId }) {
+  return (
+    <>
+      <MenuLabel>Free</MenuLabel>
+      {TEMPLATES.filter((t) => t.tier === "free").map((t) => (
+        <MenuRadioItem key={t.id} value={t.id}>{t.label}</MenuRadioItem>
+      ))}
+      <MenuSeparator />
+      <MenuLabel>Premium</MenuLabel>
+      {TEMPLATES.filter((t) => t.tier === "premium").map((t) => (
+        <MenuRadioItem key={t.id} value={t.id} hint={canUseTemplate(plan, t.id) ? (t.isNew ? <span className="menu-badge">New</span> : undefined) : <Lock size={13} aria-label="Premium" />}>
+          {t.label}
+        </MenuRadioItem>
+      ))}
+    </>
+  )
+}
 
 export function Builder({
   resume,
@@ -60,9 +135,10 @@ export function Builder({
   canUndo,
   canRedo,
   plan,
+  planReady = true,
 }: {
   resume: Resume
-  setResume: (r: Resume | ((p: Resume) => Resume)) => void
+  setResume: SetResume
   switchResume: (id: string) => void
   replaceResume: (r: Resume) => void
   undo: () => void
@@ -70,6 +146,7 @@ export function Builder({
   canUndo: boolean
   canRedo: boolean
   plan: PlanId
+  planReady?: boolean
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const resumeFileRef = useRef<HTMLInputElement>(null)
@@ -79,18 +156,32 @@ export function Builder({
   const [showProof, setShowProof] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [mobileSheet, setMobileSheet] = useState<"tools" | "export" | null>(null)
-  const [pageCount, setPageCount] = useState(1)
+  const [metrics, setMetrics] = useState<PageMetrics>({ pages: 1, breaks: [] })
+  const metricsRef = useRef(metrics)
+  metricsRef.current = metrics
   const [fitting, setFitting] = useState(false)
   const [, refreshUsage] = useState(0)
-  const previewRef = useRef<HTMLDivElement>(null)
   const store = loadStore()
   const comp = useMemo(() => completeness(resume), [resume])
   const flags = useMemo(() => qualityFlags(resume), [resume])
   const proofIssues = useMemo(() => (showProof ? findProofIssues(resume) : []), [showProof, resume])
   const exportUsage = usageSnapshot(plan, "documentExports")
+  const template = templateMeta(resume.settings.template)
+  const templateLocked = planReady && !canUseTemplate(plan, resume.settings.template)
+  const pages = metrics.pages
 
   const setSettings = (patch: Partial<Resume["settings"]>) =>
     setResume((r) => ({ ...r, settings: { ...r.settings, ...patch } }))
+
+  function chooseTemplate(id: TemplateId) {
+    setSettings({ template: id })
+    if (!canUseTemplate(plan, id)) {
+      toast.info(`${templateMeta(id).label} is a Premium template`, {
+        description: "Preview it free on your resume. Upgrade to download it as a PDF.",
+        action: { label: "See plans", onClick: () => navigate("/pricing") },
+      })
+    }
+  }
 
   function onImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -110,8 +201,9 @@ export function Builder({
           throw new Error("unrecognized")
         }
         replaceResume(plan === "free" ? { ...next, id: resume.id, name: resume.name } : next)
+        toast.success("Resume imported")
       } catch {
-        alert("That file could not be read. Import a ResuMate JSON export or a JSON Resume file.")
+        toast.error("That file could not be read.", { description: "Import a ResuMate JSON export or a JSON Resume file." })
       }
     }
     reader.readAsText(file)
@@ -125,11 +217,11 @@ export function Builder({
     try {
       const next = await importResumeFromFile(file)
       replaceResume(plan === "free" ? { ...next, id: resume.id, name: resume.name } : next)
+      toast.success("Resume imported", { description: "Review each section — automatic parsing can miss details." })
     } catch (err) {
-      alert(
-        "Couldn't import that file. Please upload a PDF or a plain-text (.txt) resume, or use Import JSON.\n\n" +
-          (err instanceof Error ? err.message : ""),
-      )
+      toast.error("Couldn't import that file.", {
+        description: `Upload a text-based PDF or a .txt resume, or use Import JSON. ${err instanceof Error ? err.message : ""}`.trim(),
+      })
     } finally {
       setImporting(false)
       e.target.value = ""
@@ -143,50 +235,68 @@ export function Builder({
       const count = await importAllJSON(file, plan === "free" ? { replaceSingleId: resume.id } : undefined)
       const s = loadStore()
       switchResume(plan === "free" ? resume.id : s.resumes[0].id)
-      alert(`Restored ${count} resume${count === 1 ? "" : "s"} from your backup.`)
+      toast.success(`Restored ${count} resume${count === 1 ? "" : "s"} from your backup.`)
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Could not restore that backup.")
+      toast.error(err instanceof Error ? err.message : "Could not restore that backup.")
     } finally {
       e.target.value = ""
     }
   }
 
+  function upgradeToast(message: string) {
+    toast.info(message, { action: { label: "See plans", onClick: () => navigate("/pricing") } })
+  }
+
   function onDuplicate() {
     if (plan === "free") {
-      alert("The Free plan supports 1 active resume. Upgrade to create additional versions.")
+      upgradeToast("The Free plan supports 1 active resume. Upgrade to create job-specific versions.")
       return
     }
     const copy = duplicateResume(resume.id)
-    if (copy) switchResume(copy.id)
+    if (copy) {
+      switchResume(copy.id)
+      toast.success(`Created “${resumeLabel(copy)}”`)
+    }
   }
 
   function onNewResume() {
+    setMobileSheet(null)
     if (plan === "free") {
-      alert("The Free plan supports 1 active resume. Upgrade to create another resume.")
-      setMobileSheet(null)
+      upgradeToast("The Free plan supports 1 active resume. Upgrade to create another resume.")
       return
     }
-    replaceResume(createEmptyResume("Untitled"))
+    replaceResume(createEmptyResume("Untitled resume"))
+  }
+
+  async function onRename() {
     setMobileSheet(null)
+    const name = await promptDialog({
+      title: "Rename this resume",
+      description: "Use a label that tells versions apart, such as the target company or role.",
+      input: { label: "Resume name", defaultValue: resume.name, maxLength: 80, placeholder: "Product Designer — Acme" },
+      confirmLabel: "Save name",
+    })
+    if (name) setResume((r) => ({ ...r, name }))
   }
 
-  function onLoadExample() {
-    if (isResumeEmpty(resume) || confirm("Load the example resume? This replaces the current resume's contents.")) {
-      replaceResume({ ...createSampleResume(), id: resume.id, name: resume.name })
-      setMobileSheet(null)
-    }
+  async function onLoadExample() {
+    setMobileSheet(null)
+    if (!isResumeEmpty(resume) && !(await confirmDialog({ title: "Load the example resume?", description: "This replaces the current resume's contents. Undo is reset after loading.", confirmLabel: "Load example", tone: "danger" }))) return
+    replaceResume({ ...createSampleResume(), id: resume.id, name: resume.name })
   }
 
-  function onDeleteResume() {
-    if (!confirm("Delete this resume? This cannot be undone.")) return
+  async function onDeleteResume() {
+    setMobileSheet(null)
+    if (!(await confirmDialog({ title: `Delete “${resumeLabel(resume)}”?`, description: "This removes the resume from this browser and cannot be undone.", confirmLabel: "Delete resume", tone: "danger" }))) return
     deleteResume(resume.id)
     const nextStore = loadStore()
     switchResume(nextStore.resumes[0].id)
-    setMobileSheet(null)
+    toast.success("Resume deleted")
   }
 
-  function onClearData() {
-    if (!confirm("Erase ALL ResuMate data from this browser (every resume)? Export a backup first if you want to keep it. This cannot be undone.")) return
+  async function onClearData() {
+    setMobileSheet(null)
+    if (!(await confirmDialog({ title: "Erase all ResuMate data from this browser?", description: "Every resume, saved job, and application will be removed. Download a backup first if you want to keep anything. This cannot be undone.", confirmLabel: "Erase everything", tone: "danger" }))) return
     clearAllData()
     location.reload()
   }
@@ -201,32 +311,14 @@ export function Builder({
     window.setTimeout(action, 0)
   }
 
-  function allowDocumentExport(): boolean {
-    const quota = consumeUsage(plan, "documentExports")
-    refreshUsage((value) => value + 1)
-    if (quota.allowed) return true
-    alert("The Free plan includes 3 PDF or Word exports each month. Upgrade for unlimited exports.")
-    return false
-  }
-
   function runPdfExport() {
-    if (allowDocumentExport()) exportPdf(resume.contact.fullName || resume.name)
+    void exportResumePdf(resume, plan).finally(() => refreshUsage((value) => value + 1))
   }
 
   function runWordExport() {
-    if (allowDocumentExport()) exportDocx(resume)
+    exportResumeWord(resume, plan)
+    refreshUsage((value) => value + 1)
   }
-
-  // Measure how many printed pages the preview spans.
-  useEffect(() => {
-    const el = previewRef.current
-    if (!el) return
-    const measure = () => setPageCount(measurePageCount(el))
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [resume])
 
   // Shrink font + tighten density until the resume fits on a single page.
   async function fitToOnePage() {
@@ -236,139 +328,143 @@ export function Builder({
       let scale = resume.settings.fontScale
       for (let i = 0; i < 8; i++) {
         await nextFrame()
-        const el = previewRef.current
-        if (!el) break
-        if (measurePageCount(el) <= 1) break
+        await nextFrame()
+        if (metricsRef.current.pages <= 1) break
         scale = Math.max(0.8, Number((scale - 0.05).toFixed(2)))
         setSettings({ fontScale: scale })
         if (scale <= 0.8) break
       }
+      await nextFrame()
+      await nextFrame()
+      if (metricsRef.current.pages > 1) toast.info("Still more than one page at the smallest size.", { description: "Trim older roles or long bullets to fit one page." })
+      else toast.success("Your resume now fits on one page")
     } finally {
       setFitting(false)
     }
   }
 
+  const exportHint = plan === "free" ? `${exportUsage.remaining} of ${FREE_PLAN_LIMITS.documentExports} free exports left this month` : undefined
+
   return (
     <div className="builder">
-      <div className="toolbar no-print">
-        <div className="toolbar-group">
-          <select
-            className="select"
-            value={resume.id}
-            onChange={(e) => switchResume(e.target.value)}
-            title="Switch resume"
-          >
-            {store.resumes.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.contact.fullName || r.name}
-              </option>
-            ))}
-          </select>
-          <button className="btn-ghost small" onClick={onNewResume}>+ New</button>
-          <button className="btn-ghost small" onClick={onDuplicate} title="Make an editable copy of this resume">Duplicate</button>
+      <div className="builder-bar no-print" role="toolbar" aria-label="Resume tools">
+        <div className="bar-group">
+          <Menu>
+            <MenuTrigger asChild>
+              <button className="bar-button resume-switcher" type="button" title="Switch, create, or manage resumes">
+                <FileText size={16} aria-hidden="true" />
+                <span className="resume-switcher-name">{resumeLabel(resume)}</span>
+                <ChevronDown size={14} aria-hidden="true" />
+              </button>
+            </MenuTrigger>
+            <MenuContent className="menu-wide">
+              <MenuLabel>Your resumes</MenuLabel>
+              <MenuRadioGroup value={resume.id} onValueChange={switchResume}>
+                {store.resumes.map((item) => (
+                  <MenuRadioItem key={item.id} value={item.id} hint={item.contact.fullName && item.contact.fullName !== item.name ? item.contact.fullName : undefined}>
+                    {resumeLabel(item)}
+                  </MenuRadioItem>
+                ))}
+              </MenuRadioGroup>
+              <MenuSeparator />
+              <MenuItem icon={<FilePlus2 size={15} />} onSelect={onNewResume} hint={plan === "free" ? <Lock size={13} /> : undefined}>New resume</MenuItem>
+              <MenuItem icon={<Copy size={15} />} onSelect={onDuplicate} hint={plan === "free" ? <Lock size={13} /> : undefined}>Duplicate as new version</MenuItem>
+              <MenuItem icon={<PencilLine size={15} />} onSelect={() => void onRename()}>Rename…</MenuItem>
+              <MenuItem icon={<BookOpen size={15} />} onSelect={() => void onLoadExample()}>Load example content</MenuItem>
+              <MenuSeparator />
+              <MenuItem icon={<FileUp size={15} />} disabled={importing} onSelect={() => resumeFileRef.current?.click()}>{importing ? "Reading…" : "Import PDF or text résumé"}</MenuItem>
+              <MenuItem icon={<FolderInput size={15} />} onSelect={() => fileRef.current?.click()}>Import JSON</MenuItem>
+              <MenuItem icon={<Save size={15} />} onSelect={() => exportAllJSON()}>Back up all resumes</MenuItem>
+              <MenuItem icon={<ArchiveRestore size={15} />} onSelect={() => backupFileRef.current?.click()}>Restore a backup</MenuItem>
+              <MenuSeparator />
+              {store.resumes.length > 1 && <MenuItem icon={<Trash2 size={15} />} tone="danger" onSelect={() => void onDeleteResume()}>Delete this resume</MenuItem>}
+              <MenuItem icon={<Eraser size={15} />} tone="danger" onSelect={() => void onClearData()}>Erase all browser data</MenuItem>
+            </MenuContent>
+          </Menu>
+        </div>
+
+        <div className="bar-group">
+          <Menu>
+            <MenuTrigger asChild>
+              <button className="bar-button" type="button" title="Choose a template">
+                <LayoutTemplate size={16} aria-hidden="true" />
+                <span className="bar-label">{template.label}</span>
+                {templateLocked && <Lock size={13} aria-label="Premium" />}
+                <ChevronDown size={14} aria-hidden="true" />
+              </button>
+            </MenuTrigger>
+            <MenuContent className="menu-scroll">
+              <MenuRadioGroup value={resume.settings.template} onValueChange={(value) => chooseTemplate(value as TemplateId)}>
+                <TemplateItems plan={plan} />
+              </MenuRadioGroup>
+              <MenuSeparator />
+              <MenuItem icon={<ImageIcon size={15} />} onSelect={() => navigate("/templates")}>Browse the template gallery</MenuItem>
+            </MenuContent>
+          </Menu>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className="bar-button" type="button" title="Accent color, text size, spacing, and paper size">
+                <span className="accent-dot" style={{ background: resume.settings.accent }} aria-hidden="true" />
+                <span className="bar-label">Design</span>
+                <ChevronDown size={14} aria-hidden="true" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="design-popover">
+              <DesignControls resume={resume} setSettings={setSettings} fitting={fitting} onFit={() => void fitToOnePage()} pages={pages} />
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        <div className="bar-group">
+          <button className="bar-icon" type="button" onClick={undo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)" aria-label="Undo"><Undo2 size={17} /></button>
+          <button className="bar-icon" type="button" onClick={redo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)" aria-label="Redo"><Redo2 size={17} /></button>
+        </div>
+
+        <div className="bar-group">
           <button
-            className="btn-ghost small"
-            title="Fill the editor with a complete example you can edit"
-            onClick={onLoadExample}
+            type="button"
+            className={`page-badge ${pages > 1 ? "over" : ""}`}
+            onClick={() => pages > 1 && void fitToOnePage()}
+            disabled={fitting || pages <= 1}
+            title={pages > 1 ? "Shrink text and spacing to fit one page" : "Estimated printed length"}
           >
-            Load example
+            {fitting ? "Fitting…" : `${pages} page${pages === 1 ? "" : "s"}`}
+            {pages > 1 && !fitting && <span className="page-badge-action">· Fit</span>}
           </button>
-          {store.resumes.length > 1 && (
-            <button
-              className="btn-ghost small danger"
-              onClick={onDeleteResume}
-            >
-              Delete
-            </button>
-          )}
-          <button
-            className="btn-ghost small danger"
-            title="Erase all locally stored data from this browser"
-            onClick={onClearData}
-          >
-            Clear data
+          <button className={`bar-button ${showProof ? "active" : ""}`} type="button" aria-pressed={showProof} onClick={() => setShowProof((s) => !s)} title="Check spelling and common writing issues">
+            <SpellCheck size={16} aria-hidden="true" /><span className="bar-label">Proofread</span>
           </button>
         </div>
 
-        <div className="toolbar-group">
-          <span className="toolbar-label">Template</span>
-          {TEMPLATES.map((t) => (
-            <button
-              key={t.id}
-              className={`chip ${resume.settings.template === t.id ? "active" : ""}${canUseTemplate(plan, t.id) ? "" : " locked"}`}
-              onClick={() => canUseTemplate(plan, t.id) ? setSettings({ template: t.id }) : navigate("/pricing")}
-              title={canUseTemplate(plan, t.id) ? t.label : `${t.label} requires Career Sprint or Pro`}
-            >
-              {t.label}{canUseTemplate(plan, t.id) ? "" : " · Paid"}
-            </button>
-          ))}
-        </div>
-
-        <div className="toolbar-group">
-          <span className="toolbar-label">Accent</span>
-          {ACCENTS.map((a) => (
-            <button
-              key={a}
-              className={`swatch ${resume.settings.accent === a ? "active" : ""}`}
-              style={swatchStyle(a)}
-              onClick={() => setSettings({ accent: a })}
-              title={a}
-              aria-label={`Accent color ${ACCENT_NAMES[a] || a}`}
-            />
-          ))}
-          <span className="toolbar-label">Size</span>
-          <input
-            type="range"
-            min={0.8}
-            max={1.15}
-            step={0.05}
-            value={resume.settings.fontScale}
-            onChange={(e) => setSettings({ fontScale: Number(e.target.value) })}
-            aria-label="Font size"
-          />
-          <span className="toolbar-label">Density</span>
-          <select
-            className="select"
-            value={resume.settings.density || "cozy"}
-            onChange={(e) => setSettings({ density: e.target.value as Density })}
-            title="Spacing density"
-          >
-            {DENSITIES.map((d) => (
-              <option key={d.id} value={d.id}>{d.label}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="toolbar-group">
-          <button className="btn-ghost small" onClick={undo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)">↶ Undo</button>
-          <button className="btn-ghost small" onClick={redo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)">↷ Redo</button>
-        </div>
-
-        <div className="toolbar-group">
-          <span className={`page-badge ${pageCount > 1 ? "over" : ""}`} title="Estimated printed length">{pageCount} page{pageCount === 1 ? "" : "s"}</span>
-          <button className="btn-ghost small" onClick={fitToOnePage} disabled={fitting} title="Shrink text and spacing to fit one page">{fitting ? "Fitting\u2026" : "Fit to 1 page"}</button>
-          <button className={`btn-ghost small ${showProof ? "active" : ""}`} onClick={() => setShowProof((s) => !s)} title="Check spelling and common writing issues">Proofread</button>
-        </div>
-
-        <div className="toolbar-group right">
-          <button className="btn-ghost small" disabled={importing} onClick={() => resumeFileRef.current?.click()}>
-            {importing ? "Reading\u2026" : "\u2b06 Import r\u00e9sum\u00e9"}
+        <div className="bar-group bar-end">
+          <button className="bar-button" type="button" onClick={() => navigate("/analyze")} title="Compare this resume with a job description">
+            <ScanSearch size={16} aria-hidden="true" /><span className="bar-label">ATS check</span>
           </button>
-          <input ref={resumeFileRef} type="file" accept=".pdf,.txt,.md,.text,application/pdf,text/plain" hidden onChange={onImportResume} />
-          <button className="btn-ghost small" onClick={() => fileRef.current?.click()}>Import JSON</button>
-          <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={onImport} />
-          <button className="btn-ghost small" onClick={() => exportResumeJSON(resume)}>Export JSON</button>
-          <button className="btn-ghost small" onClick={() => exportMarkdown(resume)} title="Export as Markdown">.md</button>
-          <button className="btn-ghost small" onClick={() => exportPlainText(resume)} title="Export as plain text">.txt</button>
-          <button className="btn-ghost small" onClick={() => exportJsonResume(resume)} title="Export in the JSON Resume standard">JSON Resume</button>
-          <button className="btn-ghost small" onClick={() => setShowShare(true)} title="Share a read-only link or QR code">🔗 Share</button>
-          <button className="btn-ghost small" onClick={() => exportAllJSON()} title="Download a backup of every saved resume">Backup all</button>
-          <button className="btn-ghost small" onClick={() => backupFileRef.current?.click()} title="Restore resumes from a backup file">Restore</button>
-          <input ref={backupFileRef} type="file" accept="application/json,.json" hidden onChange={onRestoreBackup} />
-          <button className="btn-secondary small" onClick={() => navigate("/analyze")}>✨ ATS Check</button>
-          <button className="btn-secondary small" onClick={runWordExport} title={plan === "free" ? `${exportUsage.remaining} of 3 Free exports remain this month` : "Export an editable Word file"}>⬇ Word</button>
-          <button className="btn-primary small" onClick={runPdfExport} title={plan === "free" ? `${exportUsage.remaining} of 3 Free exports remain this month` : "Export a print-ready PDF"}>⬇ PDF</button>
+          <button className="bar-icon" type="button" onClick={() => setShowShare(true)} title="Share a read-only link or QR code" aria-label="Share"><Share2 size={17} /></button>
+          <Menu>
+            <MenuTrigger asChild>
+              <button className="bar-button" type="button" title="More export formats">
+                <FileDown size={16} aria-hidden="true" /><span className="bar-label">Export</span><ChevronDown size={14} aria-hidden="true" />
+              </button>
+            </MenuTrigger>
+            <MenuContent align="end" className="menu-wide">
+              {exportHint && <MenuLabel>{exportHint}</MenuLabel>}
+              <MenuItem icon={<Download size={15} />} onSelect={runPdfExport} hint={templateLocked ? <Lock size={13} /> : "Ctrl+S"}>PDF · print-ready</MenuItem>
+              <MenuItem icon={<FileType size={15} />} onSelect={runWordExport}>Word · editable .docx</MenuItem>
+              <MenuSeparator />
+              <MenuItem icon={<FileText size={15} />} onSelect={() => exportMarkdown(resume)}>Markdown (.md)</MenuItem>
+              <MenuItem icon={<FileText size={15} />} onSelect={() => exportPlainText(resume)}>Plain text (.txt)</MenuItem>
+              <MenuItem icon={<FileJson size={15} />} onSelect={() => exportResumeJSON(resume)}>ResuMate JSON</MenuItem>
+              <MenuItem icon={<FileJson size={15} />} onSelect={() => exportJsonResume(resume)}>JSON Resume standard</MenuItem>
+            </MenuContent>
+          </Menu>
+          <button className="btn-primary bar-primary" type="button" onClick={runPdfExport} title={exportHint || "Download a print-ready PDF"}>
+            <Download size={16} aria-hidden="true" /> Download PDF
+          </button>
         </div>
+        <input ref={resumeFileRef} type="file" accept=".pdf,.txt,.md,.text,application/pdf,text/plain" hidden onChange={onImportResume} />
+        <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={onImport} />
+        <input ref={backupFileRef} type="file" accept="application/json,.json" hidden onChange={onRestoreBackup} />
       </div>
 
       <div className="mobile-workspace-bar no-print">
@@ -376,7 +472,7 @@ export function Builder({
           <span>Resume</span>
           <select className="select" value={resume.id} onChange={(event) => switchResume(event.target.value)}>
             {store.resumes.map((item) => (
-              <option key={item.id} value={item.id}>{item.contact.fullName || item.name}</option>
+              <option key={item.id} value={item.id}>{resumeLabel(item)}</option>
             ))}
           </select>
         </label>
@@ -385,11 +481,11 @@ export function Builder({
 
       <div className="mobile-tabs no-print" role="tablist" aria-label="Editor or preview">
         <button type="button" role="tab" aria-selected={mobileView === "edit"} aria-controls="builder-editor" className={`chip ${mobileView === "edit" ? "active" : ""}`} onClick={() => setMobileView("edit")}>Editor</button>
-        <button type="button" role="tab" aria-selected={mobileView === "preview"} aria-controls="builder-preview" className={`chip ${mobileView === "preview" ? "active" : ""}`} onClick={() => setMobileView("preview")}>Preview</button>
+        <button type="button" role="tab" aria-selected={mobileView === "preview"} aria-controls="builder-preview" className={`chip ${mobileView === "preview" ? "active" : ""}`} onClick={() => setMobileView("preview")}>Preview · {pages} pg</button>
       </div>
       <div className="mobile-action-dock no-print" aria-label="Mobile quick actions">
-        <button className="btn-secondary small" onClick={() => navigate("/analyze")}>✨ ATS Check</button>
-        <button className="btn-primary small" type="button" aria-haspopup="dialog" onClick={() => setMobileSheet("export")}>Export</button>
+        <button className="btn-secondary small" onClick={() => navigate("/analyze")}><ScanSearch size={17} aria-hidden="true" /> ATS check</button>
+        <button className="btn-primary small" type="button" aria-haspopup="dialog" onClick={() => setMobileSheet("export")}><Download size={17} aria-hidden="true" /> Export</button>
       </div>
       <div className={`builder-grid show-${mobileView}`}>
         <div id="builder-editor" className="editor-pane no-print" role="tabpanel" aria-label="Resume editor">
@@ -414,17 +510,25 @@ export function Builder({
               </ul>
             )}
           </div>
+          <button type="button" className="coach-callout" onClick={() => navigate("/coach")}>
+            <span className="coach-callout-icon" aria-hidden="true"><Sparkles size={18} /></span>
+            <span className="coach-callout-copy">
+              <strong>AI coach</strong>
+              <span>Review your whole resume, draft bullets for a role, fix grammar, and check consistency.</span>
+            </span>
+            <ChevronRight size={18} aria-hidden="true" />
+          </button>
           {showProof && (
-            <div className="proof-panel">
+            <div className="proof-panel" role="region" aria-label="Proofreader">
               <div className="proof-head">
                 <strong>Proofreader</strong>
                 <div className="proof-actions">
-                  <button className="btn-ghost tiny" onClick={() => setResume((r) => autoFixSpelling(r))} title="Auto-fix common misspellings">Fix spelling</button>
+                  <button className="btn-ghost tiny" onClick={() => { setResume((r) => autoFixSpelling(r)); toast.success("Common misspellings fixed") }} title="Auto-fix common misspellings">Fix spelling</button>
                   <button className="btn-ghost tiny" onClick={() => setShowProof(false)} aria-label="Close proofreader">✕</button>
                 </div>
               </div>
               {proofIssues.length === 0 ? (
-                <p className="proof-clean">No issues found. Looking sharp! ✨</p>
+                <p className="proof-clean">No issues found. Looking sharp!</p>
               ) : (
                 <ul className="proof-list">
                   {proofIssues.map((it, i) => (
@@ -434,21 +538,28 @@ export function Builder({
               )}
             </div>
           )}
-          <EditorForm resume={resume} setResume={setResume} />
-          <p className="privacy-note no-print">🔒 Offline editing and checks stay in this browser. AI features send selected text to the configured provider. Use “Backup all” to save a copy, or “Clear data” to wipe everything.</p>
+          <EditorForm resume={resume} setResume={setResume} plan={plan} />
+          <p className="privacy-note no-print">Offline editing and checks stay in this browser. AI features send selected text to the configured provider. Use “Back up all resumes” in the resume menu to save a copy.</p>
         </div>
         <div id="builder-preview" className="preview-pane" role="tabpanel" aria-label="Resume preview">
-          <div className="preview-scroll" ref={previewRef}>
-            <ResumePreview resume={resume} />
-          </div>
+          {templateLocked && (
+            <div className="premium-banner no-print" role="status">
+              <Lock size={16} aria-hidden="true" />
+              <span><strong>{template.label}</strong> is a Premium template. Preview it free — upgrade to download it.</span>
+              <button type="button" className="btn-primary small" onClick={() => navigate("/pricing")}>See plans</button>
+            </div>
+          )}
+          <PaperFrame size={paperSizeOf(resume)} showPageBreaks onMetrics={setMetrics} className="preview-frame">
+            <ResumePreview resume={resume} printTarget />
+          </PaperFrame>
         </div>
       </div>
       {showShare && <ShareModal resume={resume} onClose={() => setShowShare(false)} />}
       <BottomSheet open={mobileSheet === "export"} title="Export resume" onClose={() => setMobileSheet(null)}>
-        <p className="sheet-intro">Choose the file you need. Your resume stays in this browser.{plan === "free" ? ` ${exportUsage.remaining} of 3 PDF or Word exports remain this month.` : ""}</p>
+        <p className="sheet-intro">Choose the file you need. Your resume stays in this browser.{exportHint ? ` ${exportHint}.` : ""}</p>
         <div className="export-primary-grid">
           <button className="export-choice primary" type="button" onClick={() => runMobileExport(runPdfExport)}>
-            <strong>PDF</strong><span>Print-ready and ATS-friendly</span>
+            <strong>PDF</strong><span>{templateLocked ? "Premium template — upgrade to download" : "Print-ready and ATS-friendly"}</span>
           </button>
           <button className="export-choice" type="button" onClick={() => runMobileExport(runWordExport)}>
             <strong>Word</strong><span>Editable .docx file</span>
@@ -472,48 +583,37 @@ export function Builder({
           <div className="sheet-action-grid">
             <button className="btn-ghost" type="button" onClick={onNewResume}>New resume</button>
             <button className="btn-ghost" type="button" onClick={() => { onDuplicate(); setMobileSheet(null) }}>Duplicate</button>
-            <button className="btn-ghost" type="button" onClick={onLoadExample}>Load example</button>
-            {store.resumes.length > 1 && <button className="btn-ghost danger" type="button" onClick={onDeleteResume}>Delete resume</button>}
+            <button className="btn-ghost" type="button" onClick={() => void onRename()}>Rename</button>
+            <button className="btn-ghost" type="button" onClick={() => void onLoadExample()}>Load example</button>
+            {store.resumes.length > 1 && <button className="btn-ghost danger" type="button" onClick={() => void onDeleteResume()}>Delete resume</button>}
           </div>
         </section>
 
         <section className="sheet-section" aria-labelledby="design-tools-title">
-          <h3 id="design-tools-title">Design</h3>
+          <h3 id="design-tools-title">Template</h3>
           <div className="mobile-template-grid">
-            {TEMPLATES.map((template) => (
-              <button key={template.id} type="button" className={`chip ${resume.settings.template === template.id ? "active" : ""}${canUseTemplate(plan, template.id) ? "" : " locked"}`} onClick={() => canUseTemplate(plan, template.id) ? setSettings({ template: template.id }) : navigate("/pricing")}>{template.label}{canUseTemplate(plan, template.id) ? "" : " · Paid"}</button>
+            {TEMPLATES.map((item) => (
+              <button key={item.id} type="button" aria-pressed={resume.settings.template === item.id} className={`chip ${resume.settings.template === item.id ? "active" : ""}${canUseTemplate(plan, item.id) ? "" : " locked"}`} onClick={() => chooseTemplate(item.id)}>
+                {item.label}{!canUseTemplate(plan, item.id) && <Lock size={12} aria-label="Premium" />}
+              </button>
             ))}
           </div>
-          <div className="mobile-setting-row">
-            <span className="toolbar-label">Accent</span>
-            <div className="mobile-swatches">
-              {ACCENTS.map((accent) => (
-                <button key={accent} type="button" className={`swatch ${resume.settings.accent === accent ? "active" : ""}`} style={swatchStyle(accent)} onClick={() => setSettings({ accent })} aria-label={`Accent color ${ACCENT_NAMES[accent] || accent}`} />
-              ))}
-            </div>
-          </div>
-          <label className="mobile-setting-row setting-with-control">
-            <span className="toolbar-label">Text size</span>
-            <input type="range" min={0.8} max={1.15} step={0.05} value={resume.settings.fontScale} onChange={(event) => setSettings({ fontScale: Number(event.target.value) })} />
-          </label>
-          <label className="mobile-setting-row setting-with-control">
-            <span className="toolbar-label">Spacing</span>
-            <select className="select" value={resume.settings.density || "cozy"} onChange={(event) => setSettings({ density: event.target.value as Density })}>
-              {DENSITIES.map((density) => <option key={density.id} value={density.id}>{density.label}</option>)}
-            </select>
-          </label>
+        </section>
+        <section className="sheet-section" aria-labelledby="design-controls-title">
+          <h3 id="design-controls-title">Design</h3>
+          <DesignControls resume={resume} setSettings={setSettings} fitting={fitting} onFit={() => void fitToOnePage()} pages={pages} />
         </section>
 
         <section className="sheet-section" aria-labelledby="editing-tools-title">
           <div className="sheet-section-heading">
             <h3 id="editing-tools-title">Editing</h3>
-            <span className={`page-badge ${pageCount > 1 ? "over" : ""}`}>{pageCount} page{pageCount === 1 ? "" : "s"}</span>
+            <span className={`page-badge ${pages > 1 ? "over" : ""}`}>{pages} page{pages === 1 ? "" : "s"}</span>
           </div>
           <div className="sheet-action-grid">
-            <button className="btn-ghost" type="button" onClick={undo} disabled={!canUndo}>↶ Undo</button>
-            <button className="btn-ghost" type="button" onClick={redo} disabled={!canRedo}>↷ Redo</button>
-            <button className="btn-ghost" type="button" onClick={fitToOnePage} disabled={fitting}>{fitting ? "Fitting…" : "Fit to 1 page"}</button>
+            <button className="btn-ghost" type="button" onClick={undo} disabled={!canUndo}><Undo2 size={16} aria-hidden="true" /> Undo</button>
+            <button className="btn-ghost" type="button" onClick={redo} disabled={!canRedo}><Redo2 size={16} aria-hidden="true" /> Redo</button>
             <button className={`btn-ghost ${showProof ? "active" : ""}`} type="button" onClick={() => { setShowProof((current) => !current); setMobileSheet(null) }}>Proofread</button>
+            <button className="btn-ghost" type="button" onClick={() => { setMobileSheet(null); navigate("/templates") }}>Template gallery</button>
           </div>
         </section>
 
@@ -525,7 +625,7 @@ export function Builder({
             <button className="btn-ghost" type="button" onClick={() => { setMobileSheet(null); setShowShare(true) }}>Share resume</button>
             <button className="btn-ghost" type="button" onClick={() => runMobileExport(exportAllJSON)}>Back up all</button>
             <button className="btn-ghost" type="button" onClick={() => openFilePicker(backupFileRef)}>Restore backup</button>
-            <button className="btn-ghost danger" type="button" onClick={onClearData}>Clear browser data</button>
+            <button className="btn-ghost danger" type="button" onClick={() => void onClearData()}>Erase browser data</button>
           </div>
         </section>
       </BottomSheet>
