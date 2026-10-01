@@ -20,6 +20,7 @@ import { VerifyEmail } from "./pages/VerifyEmail"
 import { Account } from "./pages/Account"
 import { Applications } from "./pages/Applications"
 import { Admin } from "./pages/Admin"
+import { LinkedIn } from "./pages/LinkedIn"
 import { useAccount } from "./lib/auth"
 import { useTheme, loadStore } from "./lib/storage"
 import { createSampleResume } from "./data/sample"
@@ -321,6 +322,7 @@ export default function App() {
         {route === "/analyze" && <Analyze resume={resume} setResume={setResume} plan={effectivePlan} />}
         {route === "/cover" && <CoverLetter resume={resume} plan={effectivePlan} />}
         {route === "/interview" && <Interview resume={resume} plan={effectivePlan} />}
+        {route === "/linkedin" && <LinkedIn resume={resume} plan={effectivePlan} />}
         {route === "/applications" && <Applications resume={resume} />}
         {route === "/admin" && <Admin user={account.user} />}
         {route === "/settings" && <Settings />}

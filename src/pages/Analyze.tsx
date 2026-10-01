@@ -1,7 +1,9 @@
 import React, { useState } from "react"
 import { Resume } from "../types/resume"
 import { AtsResult, analyzeWithAI, analyzeLocally } from "../lib/ats"
-import { aiTailorResume, aiProofread, TailorResult } from "../lib/ai"
+import { aiTailorResume, aiProofread, aiDecodeJob, TailorResult, type JobDecode } from "../lib/ai"
+import { ArrowLeft, BarChart3, FileSignature, ScanSearch, SearchCheck, Sparkles } from "lucide-react"
+import { readSavedJob, writeSavedJob } from "../lib/jobContext"
 import { listJDs, saveJD, deleteJD, SavedJD } from "../lib/jdLibrary"
 import { ResumePreview, paperSizeOf } from "../templates/ResumePreview"
 import { PaperFrame } from "../components/PaperFrame"
@@ -39,13 +41,10 @@ export function Analyze({
   setResume: (r: Resume | ((p: Resume) => Resume)) => void
   plan: PlanId
 }) {
-  const [jd, setJd] = useState(() => {
-    try {
-      return sessionStorage.getItem("resumate.jd") || ""
-    } catch {
-      return ""
-    }
-  })
+  const [jd, setJd] = useState(readSavedJob)
+  const [decoding, setDecoding] = useState(false)
+  const [decoded, setDecoded] = useState<JobDecode | null>(null)
+  const [decodeErr, setDecodeErr] = useState("")
   const [result, setResult] = useState<AtsResult | null>(null)
   const [targetRole, setTargetRole] = useState("")
   const [uploadedResume, setUploadedResume] = useState<Resume | null>(null)
@@ -94,10 +93,20 @@ export function Analyze({
 
   function onJd(v: string) {
     setJd(v)
+    writeSavedJob(v)
+  }
+
+  async function decode() {
+    setDecodeErr("")
+    setDecoding(true)
+    setDecoded(null)
     try {
-      sessionStorage.setItem("resumate.jd", v)
-    } catch {
-      /* ignore storage errors */
+      setDecoded(await aiDecodeJob(jd))
+      setAiActionVersion((value) => value + 1)
+    } catch (e) {
+      setDecodeErr(e instanceof Error ? e.message : "Couldn't break down this job.")
+    } finally {
+      setDecoding(false)
     }
   }
 
@@ -190,12 +199,14 @@ export function Analyze({
 
   return (
     <div className="analyze">
-      <div className="analyze-head">
-        <button className="btn-ghost small" onClick={() => navigate("/builder")}>← Back to editor</button>
-        <button className="btn-secondary" onClick={() => navigate("/coach?mode=evidence")}>Compare job requirements with resume evidence</button>
-        <h1>Job-specific resume check</h1>
-        <p className="muted">Compare a resume with a real job description using a transparent, deterministic baseline. The score is guidance, not an employer's private ATS result.</p>
-      </div>
+      <header className="page-header">
+        <button className="btn-ghost small back-link" onClick={() => navigate("/builder")}><ArrowLeft size={15} aria-hidden="true" /> Back to editor</button>
+        <h1>ATS check</h1>
+        <p className="page-sub">Compare a resume with a real job description using a transparent, deterministic baseline. The score is guidance, not an employer's private ATS result.</p>
+        <div className="page-header-actions">
+          <button className="btn-ghost small" onClick={() => navigate("/coach?mode=evidence")}><SearchCheck size={15} aria-hidden="true" /> Map requirements to evidence</button>
+        </div>
+      </header>
 
       <div className="analyze-grid">
         <div className="jd-pane">
@@ -244,22 +255,40 @@ export function Analyze({
           />
           <div className="jd-actions">
             <button className="btn-primary" disabled={loading} onClick={() => run(false)}>
-              {loading ? "Checking\u2026" : "Run local job match"}
+              <ScanSearch size={16} aria-hidden="true" /> {loading ? "Checking\u2026" : "Run local job match"}
             </button>
-            <button className="btn-ghost" disabled={loading} onClick={() => run(true)} title="Requires a configured AI provider">
-              Optional AI review
+            <button className="btn-ghost" disabled={loading} onClick={() => run(true)} title="Uses one hosted AI action">
+              <Sparkles size={16} aria-hidden="true" /> AI match review
             </button>
           </div>
           <AiActionBudget plan={plan} refreshKey={aiActionVersion} />
           <div className="jd-actions">
+            <button className="btn-secondary" disabled={decoding} onClick={() => void decode()} title="Break the job into must-haves, nice-to-haves, keywords, and questions">
+              <SearchCheck size={16} aria-hidden="true" /> {decoding ? "Decoding\u2026" : "Decode this job"}
+            </button>
             <button className="btn-secondary" disabled={tailoring} onClick={tailor} title="Use AI to tailor your resume for this job">
-              {tailoring ? "Tailoring\u2026" : "\u2728 Tailor my resume"}
+              <Sparkles size={16} aria-hidden="true" /> {tailoring ? "Tailoring\u2026" : "Tailor my resume"}
             </button>
             <button className="btn-secondary" disabled={proofing} onClick={proofread} title="Grammar & tone proofread">
-              {proofing ? "Checking\u2026" : "\u2728 Proofread"}
+              {proofing ? "Checking\u2026" : "Proofread"}
             </button>
-            <button className="btn-ghost" onClick={() => navigate("/cover")} title="Draft a cover letter for this job">✍️ Cover letter</button>
+            <button className="btn-ghost" onClick={() => navigate("/cover")} title="Draft a cover letter for this job"><FileSignature size={16} aria-hidden="true" /> Cover letter</button>
           </div>
+          {decodeErr && <p className="error">{decodeErr}</p>}
+          {decoded && (
+            <div className="tailored-box job-decode">
+              <div className="row between"><strong>Job breakdown</strong>{decoded.seniority && <span className="badge ai">{decoded.seniority}</span>}</div>
+              <p>{decoded.summary}</p>
+              {([["Must-haves", decoded.mustHaves], ["Nice to have", decoded.niceToHaves], ["Main responsibilities", decoded.responsibilities], ["Worth clarifying", decoded.watchOuts], ["Questions to ask them", decoded.questionsToAsk]] as const).map(([label, items]) => items.length > 0 && (
+                <div className="decode-group" key={label}>
+                  <h4>{label}</h4>
+                  <ul className="tailor-suggestions">{items.map((item, i) => <li key={i}>{item}</li>)}</ul>
+                </div>
+              ))}
+              {decoded.keywords.length > 0 && <div className="decode-group"><h4>Keywords to reflect truthfully</h4><div className="kw-chips">{decoded.keywords.map((k) => <span key={k} className="kw matched">{k}</span>)}</div></div>}
+              <div className="jd-actions"><button className="btn-ghost small" onClick={() => setDecoded(null)}>Dismiss</button></div>
+            </div>
+          )}
           {tailorErr && <p className="error">{tailorErr}</p>}
           {tailored && (
             <div className="tailored-box">
@@ -307,7 +336,7 @@ export function Analyze({
         <div className="result-pane">
           {!result && !loading && (
             <div className="empty-state">
-              <div className="empty-emoji" aria-hidden="true">📊</div>
+              <span className="empty-icon" aria-hidden="true"><BarChart3 size={26} /></span>
               <p>Your local match score, requirement signals, and suggestions will appear here.</p>
             </div>
           )}
@@ -398,7 +427,7 @@ export function Analyze({
         <section className="hl-preview-wrap">
           <div className="hl-preview-head">
             <h2>Resume preview <span className="muted">— matched keywords highlighted</span></h2>
-            <button className="btn-ghost small" onClick={() => navigate("/cover")}>✍️ Generate cover letter</button>
+            <button className="btn-ghost small" onClick={() => navigate("/cover")}><FileSignature size={15} aria-hidden="true" /> Generate cover letter</button>
           </div>
           <div className="hl-preview">
             <PaperFrame size={paperSizeOf(analysisResume)} maxScale={0.95}>

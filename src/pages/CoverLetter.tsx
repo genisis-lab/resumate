@@ -5,17 +5,13 @@ import { navigate } from "../router"
 import { triggerDownload, sanitize } from "../lib/storage"
 import type { PlanId } from "../lib/billing"
 import { AiActionBudget } from "../components/AiActionBudget"
+import { ArrowLeft, Copy, Download, FileSignature, Sparkles } from "lucide-react"
+import { readSavedJob, writeSavedJob } from "../lib/jobContext"
 
 const TONES = ["professional", "enthusiastic", "concise", "warm"]
 
 export function CoverLetter({ resume, plan }: { resume: Resume; plan: PlanId }) {
-  const [jd, setJd] = useState(() => {
-    try {
-      return sessionStorage.getItem("resumate.jd") || ""
-    } catch {
-      return ""
-    }
-  })
+  const [jd, setJd] = useState(readSavedJob)
   const [tone, setTone] = useState("professional")
   const [text, setText] = useState("")
   const [loading, setLoading] = useState(false)
@@ -25,11 +21,7 @@ export function CoverLetter({ resume, plan }: { resume: Resume; plan: PlanId }) 
 
   function onJd(v: string) {
     setJd(v)
-    try {
-      sessionStorage.setItem("resumate.jd", v)
-    } catch {
-      /* ignore storage errors */
-    }
+    writeSavedJob(v)
   }
 
   async function generate() {
@@ -67,16 +59,17 @@ export function CoverLetter({ resume, plan }: { resume: Resume; plan: PlanId }) 
 
   return (
     <div className="analyze">
-      <div className="analyze-head">
-        <button className="btn-ghost small" onClick={() => navigate("/builder")}>← Back to editor</button>
-        <h1>Cover Letter Generator</h1>
-        <p className="muted">Paste the job description and we'll draft a tailored cover letter grounded in your resume. Always review and personalize before sending.</p>
-      </div>
+      <header className="page-header">
+        <button className="btn-ghost small back-link" onClick={() => navigate("/builder")}><ArrowLeft size={15} aria-hidden="true" /> Back to editor</button>
+        <h1>Cover letter</h1>
+        <p className="page-sub">Paste the job description and get a tailored letter that connects the role's top requirements to evidence from your resume. Always review and personalize before sending.</p>
+      </header>
 
       <div className="analyze-grid">
         <div className="jd-pane">
           <textarea
             className="jd-input"
+            aria-label="Job description"
             placeholder="Paste the full job description here…"
             value={jd}
             onChange={(e) => onJd(e.target.value)}
@@ -91,7 +84,7 @@ export function CoverLetter({ resume, plan }: { resume: Resume; plan: PlanId }) 
               </select>
             </label>
             <button className="btn-primary" disabled={loading} onClick={generate}>
-              {loading ? "Writing…" : "✨ Generate"}
+              <Sparkles size={16} aria-hidden="true" /> {loading ? "Writing…" : text ? "Regenerate" : "Generate"}
             </button>
           </div>
           <AiActionBudget plan={plan} refreshKey={aiActionVersion} />
@@ -102,15 +95,16 @@ export function CoverLetter({ resume, plan }: { resume: Resume; plan: PlanId }) 
         <div className="result-pane">
           {!text && !loading && (
             <div className="empty-state">
-              <div className="empty-emoji" aria-hidden="true">✉️</div>
+              <span className="empty-icon" aria-hidden="true"><FileSignature size={26} /></span>
               <p>Your tailored cover letter will appear here, ready to edit, copy, or download.</p>
             </div>
           )}
           {text && (
             <div className="cover-result">
               <div className="cover-actions">
-                <button className="btn-ghost small" onClick={copy}>{copied ? "Copied ✓" : "Copy"}</button>
-                <button className="btn-ghost small" onClick={download}>Download .txt</button>
+                <button className="btn-ghost small" onClick={copy}><Copy size={15} aria-hidden="true" /> {copied ? "Copied" : "Copy"}</button>
+                <button className="btn-ghost small" onClick={download}><Download size={15} aria-hidden="true" /> Download .txt</button>
+                <span className="char-count">{text.trim().split(/\s+/).filter(Boolean).length} words</span>
               </div>
               <textarea
                 className="cover-text"

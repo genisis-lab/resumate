@@ -11,6 +11,7 @@ import {
 } from "./fields"
 import { CustomSectionsEditor } from "./CustomSections"
 import { TagInput } from "./ui/TagInput"
+import { Sparkles } from "lucide-react"
 import type { PlanId } from "../lib/billing"
 
 type Setter = (updater: (r: Resume) => Resume) => void
@@ -118,7 +119,7 @@ export function EditorForm({
         <div className="editor-section-head">
           <h3 className="editor-section-title">{SECTION_LABELS.summary}</h3>
           <button className="btn-ghost small" disabled={writingSummary} onClick={writeSummary} title="Let AI draft a summary from your resume">
-            {writingSummary ? "Writing\u2026" : "\u2728 Write with AI"}
+            <Sparkles size={14} aria-hidden="true" /> {writingSummary ? "Writing\u2026" : "Write with AI"}
           </button>
         </div>
         <TextArea

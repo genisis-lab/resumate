@@ -241,7 +241,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 .bullet-row { display: flex; gap: 6px; align-items: flex-start; margin-bottom: 6px; }
 .bullet-input { flex: 1; }
 .bullet-actions { display: flex; flex-direction: column; }
-.btn-ghost.small { display: inline-block; }
+.btn-ghost.small { display: inline-flex; }
 
 /* ---- Analyze ---- */
 .analyze, .templates-page { max-width: 1080px; margin: 0 auto; padding: 28px 24px 60px; }
@@ -1728,3 +1728,88 @@ button.page-badge.over:not(:disabled):hover { filter: brightness(.96); }
 @media (max-width: 768px) {
   .builder-bar { display: none; }
 }
+
+/* ============================================================
+   AI TOOL PAGES — coach, LinkedIn, interview, job decoder
+   ============================================================ */
+.tool-page { width: min(1120px, 100%); margin: 0 auto; padding: 28px 24px 72px; }
+.tool-page > .card { margin-bottom: 18px; }
+.tool-grid { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); gap: 20px; align-items: start; }
+.tool-input { display: grid; gap: 4px; position: sticky; top: calc(var(--nav-h) + 16px); }
+.tool-input > .btn-primary { justify-self: start; margin-top: 4px; }
+.tool-output { min-width: 0; }
+.tool-output > .card { margin-bottom: 14px; }
+.empty-state .empty-icon, .empty-icon { display: inline-grid; width: 52px; height: 52px; margin-bottom: 12px; place-items: center; border-radius: 14px; background: var(--brand-soft); color: var(--brand); }
+.card.empty-state { padding: 48px 24px; }
+.page .field-input, .tool-page .field-input { width: 100%; }
+.tool-page .field { margin-bottom: 12px; }
+
+.mode-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 22px; }
+.mode-card { display: flex; align-items: flex-start; gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); text-align: left; transition: border-color .15s, background-color .15s, box-shadow .15s; }
+.mode-card:hover { border-color: var(--border-strong); }
+.mode-card.active { border-color: var(--brand); background: var(--brand-soft); box-shadow: 0 0 0 1px var(--brand) inset; }
+.mode-card > span:last-child { display: grid; gap: 2px; min-width: 0; }
+.mode-card strong { font-size: 14px; }
+.mode-card > span:last-child > span { color: var(--text-soft); font-size: 12.5px; line-height: 1.4; }
+.mode-icon { display: grid; flex: none; width: 34px; height: 34px; place-items: center; border-radius: 9px; background: var(--surface-2); color: var(--brand); }
+.mode-card.active .mode-icon { background: var(--brand); color: #fff; }
+
+.coach-quote { margin: 8px 0; padding: 10px 12px; border-left: 3px solid var(--border-strong); border-radius: 0 8px 8px 0; background: var(--surface-2); color: var(--text-soft); font-size: 13.5px; line-height: 1.55; overflow-wrap: anywhere; }
+.coach-followup { margin: 4px 0 10px; padding: 10px 12px; border-radius: 8px; background: var(--brand-soft); color: var(--text); font-size: 14px; line-height: 1.5; }
+.local-checks { padding: 12px 14px; border: 1px dashed var(--border-strong); border-radius: 10px; }
+.local-checks h3 { margin: 0 0 6px; font-size: 13px; }
+.local-checks ul { margin: 0 0 8px; padding-left: 18px; font-size: 13px; }
+.review-results { display: grid; gap: 12px; }
+.review-overall { border-left: 4px solid var(--brand); }
+.review-overall p { margin: 6px 0 0; line-height: 1.6; }
+.review-item { display: grid; gap: 4px; margin: 0; }
+.review-item.priority-high { border-left: 4px solid var(--bad); }
+.review-item.priority-medium { border-left: 4px solid var(--ok); }
+.review-item.priority-low { border-left: 4px solid var(--border-strong); }
+.review-fix { margin: 4px 0 0; font-weight: 600; line-height: 1.5; }
+.review-item .hint { margin: 0; }
+.priority-badge, .evidence-badge { justify-self: start; display: inline-flex; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+.priority-badge.high, .evidence-badge.gap { background: var(--bad-bg); color: var(--bad); }
+.priority-badge.medium, .evidence-badge.transferable { background: var(--ok-bg); color: var(--ok); }
+.priority-badge.low { background: var(--surface-2); color: var(--text-soft); }
+.evidence-badge.supported { background: var(--good-bg); color: var(--good); }
+.coach-save { display: grid; gap: 10px; justify-items: start; }
+.coach-save .hint { margin: 0; }
+
+.ai-review-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.ai-review-head h3 { margin: 0 0 4px; font-size: 15px; }
+.ai-review-item.decided { opacity: .78; }
+.ai-review-item.decided.accepted { border-color: color-mix(in srgb, var(--good) 40%, var(--border)); }
+.diff-text { margin: 0 0 6px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff-text del { padding: 0 1px; border-radius: 3px; background: var(--bad-bg); color: var(--bad); text-decoration-thickness: 1.5px; }
+.diff-text ins { padding: 0 1px; border-radius: 3px; background: var(--good-bg); color: var(--good); text-decoration: none; }
+.decision-status { margin: 4px 0 0; color: var(--text-soft); font-size: 13px; font-weight: 600; }
+
+.profile-draft { display: grid; gap: 20px; }
+.draft-block { display: grid; gap: 8px; }
+.draft-head { display: flex; align-items: center; gap: 10px; }
+.draft-head strong { font-size: 14px; }
+.draft-head .btn-ghost { margin-left: auto; }
+.char-count { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.char-count.over { color: var(--bad); font-weight: 700; }
+.cover-actions { align-items: center; }
+.email-kinds { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.email-draft { display: grid; gap: 8px; margin-top: 16px; }
+.job-decode p { margin: 6px 0 4px; }
+.decode-group { margin-top: 12px; }
+.decode-group h4 { margin: 0 0 4px; color: var(--text-soft); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+.match-job { margin: 0 0 0 4px; }
+.page-sub .inline-button { font-weight: 600; }
+
+@media (max-width: 900px) {
+  .tool-grid { grid-template-columns: 1fr; }
+  .tool-input { position: static; }
+  .mode-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .tool-page { padding: 18px 14px 56px; }
+  .mode-grid { grid-template-columns: 1fr; gap: 8px; }
+  .mode-card { padding: 11px 12px; }
+  .draft-head { flex-wrap: wrap; }
+}
+.review-results > .card, .tool-output .ai-review { margin: 0; }
