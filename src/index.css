@@ -1813,3 +1813,6 @@ button.page-badge.over:not(:disabled):hover { filter: brightness(.96); }
   .draft-head { flex-wrap: wrap; }
 }
 .review-results > .card, .tool-output .ai-review { margin: 0; }
+.route-loading { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 50vh; color: var(--muted); font-size: 14px; }
+.route-spinner { width: 18px; height: 18px; border: 2px solid var(--border-strong); border-top-color: var(--brand); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

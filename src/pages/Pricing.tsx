@@ -24,7 +24,8 @@ const PLANS = [
       "5 job-specific resume versions",
       "Expanded local ATS checks",
       "40 Cloudflare-hosted AI actions during the 30-day pass",
-      "AI job match, tailoring, rewriting, cover letters, and interview prep",
+      "AI resume review, job match, tailoring, rewriting, cover letters, and interview prep",
+      "LinkedIn optimizer, job decoder, and follow-up and thank-you emails",
       `All ${TEMPLATES.length} templates, including ${PREMIUM_TEMPLATE_COUNT} Premium designs, and unlimited PDF/Word exports`,
       "Interview tools and 30-day cloud sync when available",
     ],
@@ -42,7 +43,8 @@ const PLANS = [
       "Unlimited resumes, jobs, and applications",
       "Hosted parser testing when available",
       "150 Cloudflare-hosted AI actions each month",
-      "AI job match, tailoring, rewriting, cover letters, and interview prep",
+      "Every AI tool: resume review, LinkedIn optimizer, job decoder, cover letters, and interview prep",
+      `All ${TEMPLATES.length} templates and unlimited PDF/Word exports`,
       "Version history and multi-device sync when available",
       "Priority support and 25 active share links",
     ],
@@ -84,7 +86,7 @@ const FAQS = [
   },
   {
     question: "What counts as an AI action?",
-    answer: "One hosted request uses one action at launch, whether it is a match report, bullet rewrite, tailored summary, proofreading pass, cover letter, or interview pack. ResuMate will disclose any future change before you run a request.",
+    answer: "One hosted request uses one action, whether it is a match report, resume review, bullet rewrite, tailored summary, LinkedIn profile, job breakdown, cover letter, email, or interview pack. If the AI can't produce a valid answer, the action is not counted. ResuMate will disclose any future change before you run a request.",
   },
   {
     question: "What happens when I reach a limit?",

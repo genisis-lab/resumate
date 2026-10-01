@@ -1,7 +1,8 @@
 import React from "react"
-import { PaperSize, Resume, SectionKey, SECTION_LABELS, TemplateId } from "../types/resume"
+import { Resume, SectionKey, SECTION_LABELS, TemplateId } from "../types/resume"
 import "./fonts"
 import "./templates.css"
+import { paperSizeOf } from "../lib/fitPage"
 
 function dateRange(start: string, end: string, current?: boolean) {
   const e = current ? "Present" : end
@@ -327,9 +328,7 @@ function renderCustom(r: Resume, hl: HL) {
     ))
 }
 
-export function paperSizeOf(resume: Resume): PaperSize {
-  return resume.settings.paperSize === "a4" ? "a4" : "letter"
-}
+export { paperSizeOf }
 
 export function ResumePreview({
   resume,

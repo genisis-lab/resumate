@@ -6,7 +6,7 @@ import { templateMeta } from "../templates/registry"
 import { confirmDialog } from "../components/ui/dialogs"
 import { exportPdf } from "./exportPdf"
 import { exportDocx } from "./exportDocx"
-import { paperSizeOf } from "../templates/ResumePreview"
+import { paperSizeOf } from "./fitPage"
 import { navigate } from "../router"
 
 // Shared export rules for the toolbar, mobile sheet, and keyboard shortcuts.

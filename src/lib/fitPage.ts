@@ -1,6 +1,6 @@
 // Page geometry shared by the preview, the page counter, and PDF export.
 // Sizes are CSS pixels at 96 DPI, which is what Chromium's print engine uses.
-import type { PaperSize } from "../types/resume"
+import type { PaperSize, Resume } from "../types/resume"
 
 export const PAGE_SIZES: Record<PaperSize, { width: number; height: number; css: string; label: string }> = {
   letter: { width: 816, height: 1056, css: "letter", label: "US Letter" },
@@ -35,4 +35,8 @@ export function nextFrame(): Promise<void> {
   return new Promise((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
   })
+}
+
+export function paperSizeOf(resume: Pick<Resume, "settings">): PaperSize {
+  return resume.settings.paperSize === "a4" ? "a4" : "letter"
 }

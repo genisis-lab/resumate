@@ -1,6 +1,6 @@
 # ResuMate — self-serve resume builder
 
-A browser-first resume builder built with **React + Vite**. Users enter their own details, choose from nine original templates, run a local job-description match check, and export to **PDF** or **Word (.docx)**. Editing stays in browser storage unless a future sync feature is deliberately enabled. Verified accounts manage software access and the future upgrade path; creating an account does not upload existing resumes.
+A browser-first resume builder built with **React + Vite**. Users enter their own details, choose from seventeen original templates (3 free, 14 Premium), run a local job-description match check, and export to **PDF** or **Word (.docx)**. Editing stays in browser storage unless a future sync feature is deliberately enabled. Verified accounts manage software access and the future upgrade path; creating an account does not upload existing resumes.
 
 > **Live:** https://resume.builtwai.com/
 
@@ -13,6 +13,7 @@ A browser-first resume builder built with **React + Vite**. Users enter their ow
 - 📝 **Live split-screen editor** — structured form + real-time preview
 - 🎯 **Local ATS check** — paste a job description for on-device keyword and structure feedback
 - 📄 **PDF & Word export** — vector, selectable, ATS-parseable PDF + a genuine, editable `.docx`
+- 🖨️ **True-to-print preview** — the page renders at its printed size, so line breaks and the page counter match the PDF
 
 ## Features
 
@@ -27,9 +28,10 @@ A browser-first resume builder built with **React + Vite**. Users enter their ow
 
 ### Layout & design
 
-- **9 templates** — Modern, Classic, Minimal, ATS-Safe, Two-Column, Creative, Executive, Compact, and Technical.
-- **Accent color, font-size, and density** controls (Compact / Cozy / Roomy).
-- **Fit to one page** — auto-shrinks density and font scale until the resume fits, with a live page-count badge.
+- **17 templates** registered in `src/templates/registry.ts`. Free: Modern, Classic, ATS-Safe. Premium: Horizon, Elegant, Timeline, Swiss Grid, Bold, Developer, Monogram, Professional Serif, Minimal, Two-Column, Creative, Executive, Compact, and Technical. Free plans can preview Premium templates on their own resume; PDF download requires Career Sprint or Pro.
+- **Accent color (presets or custom), font-size, density, and paper size** (US Letter or A4).
+- **Fit to one page** — auto-shrinks density and font scale until the resume fits, with an exact page-count badge and page-break guides.
+- **ATS-safe PDFs** — template fonts are static TrueType files (Chromium embeds variable fonts as Type 3, which parsers read without word spaces), no text opacity, and capped letter-spacing so headings extract intact.
 - **Drag-and-drop reordering** — reorder bullets and resume sections via drag handles (arrow buttons as a fallback).
 - **Dark mode**, fully responsive, with a dedicated mobile editor/preview experience.
 
@@ -43,8 +45,10 @@ A browser-first resume builder built with **React + Vite**. Users enter their ow
 ### Beyond the resume
 
 - **Local ATS analyzer** — keyword match and section breakdown with matched keywords highlighted in a preview.
-- **Cover letter generator** and **interview prep** helpers.
-- **Optional online AI tools** — available only when a provider key is configured; hosted allowances are not advertised as live.
+- **Cover letter generator**, **interview prep** with outreach, follow-up, thank-you, and networking emails, and a **LinkedIn optimizer**.
+- **AI coach** — full resume review, role builder, grammar, job-evidence mapping, consistency check, and interview practice. Suggestions are shown as a word diff and applied only when accepted.
+- **Job decoder** — must-haves, nice-to-haves, keywords, things to clarify, and questions to ask.
+- **Hosted AI** on Cloudflare Workers AI for Career Sprint and Pro, metered per action.
 - **Bring-your-own-key (BYOK)** option in Settings.
 
 ### Accessibility & power use
@@ -54,7 +58,8 @@ A browser-first resume builder built with **React + Vite**. Users enter their ow
 
 ## Tech
 
-- React 18 + TypeScript + Vite
+- React 18 + TypeScript + Vite, with route-level code splitting
+- Radix UI primitives (menus, popovers, dialogs), lucide icons, and sonner toasts, styled with plain CSS
 - Custom hash router, pure-JS `.docx`/zip writer, native print-to-PDF, `pdfjs-dist` for PDF import, `qrcode` for share QR codes
 - PWA: web app manifest + a service worker (network-first for navigation, stale-while-revalidate for assets)
 - Cloudflare Pages + Pages Functions, D1 account storage, and Resend transactional email
@@ -73,6 +78,8 @@ Optional online analysis calls `/api/analyze`. During `vite dev` that route does
 npm run build
 npx wrangler pages dev dist
 ```
+
+Hosted AI uses the Workers AI binding (`AI` in `wrangler.jsonc`) with `@cf/qwen/qwen3-30b-a3b-fp8` by default. Set `AI_HOSTED_MODEL` to another allowlisted model (see `HOSTED_MODEL_ALLOWLIST` in `server/ai-proxy.ts`, for example `@cf/openai/gpt-oss-120b`) to switch models without a code change. Every structured response is schema-validated, grounded against the supplied text where possible, and retried once with the validation error before failing; failed requests do not consume an AI action.
 
 `.dev.vars` example:
 
@@ -125,12 +132,13 @@ npx wrangler pages deploy dist --project-name resumate
 ## Project structure
 
 ```
-functions/api/             Cloudflare Pages Functions (auth, email verification, LLM proxy)
+functions/api/             Cloudflare Pages Functions (auth, email verification, billing, LLM proxy)
+server/                    shared server logic: AI proxy and quotas, structured generation, coach, billing
 public/                    favicon, manifest.webmanifest, sw.js, og.svg, _headers
 src/
   components/              editor form, reusable fields, custom sections, modals (share, shortcuts)
-  templates/               ResumePreview (all 6 templates)
-  pages/                   Landing, Builder, Templates, Analyze, CoverLetter, Interview, Settings, Privacy
+  templates/               registry.ts (template metadata), ResumePreview, templates.css, fonts.ts
+  pages/                   Landing, Builder, Templates, Analyze, Coach, CoverLetter, Interview, LinkedIn, Applications, Settings, …
   lib/                     storage, ats, exportPdf, exportDocx, exportText, zip, quality,
                            resumeText, share, jsonResume, proofread, writingCoach, actionVerbs,
                            fitPage, pwa, importResume, ai, byok, pdf

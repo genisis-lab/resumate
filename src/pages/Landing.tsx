@@ -13,7 +13,7 @@ const FAQS = [
   },
   {
     question: "Which AI features are available?",
-    answer: "Local job matching is available on the free plan. Career Sprint and Pro include hosted AI actions for tailored summaries, bullet rewrites, cover letters, interview questions, and other guided writing tools.",
+    answer: "Local job matching and writing checks are available on the free plan. Career Sprint and Pro add hosted AI for a full resume review, tailored summaries, bullet rewrites, cover letters, interview prep, follow-up emails, a LinkedIn profile optimizer, and a job description decoder.",
   },
   {
     question: "Where are my resumes stored?",

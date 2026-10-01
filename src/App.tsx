@@ -1,37 +1,56 @@
-import { Coach } from "./pages/Coach"
-import { useEffect, useRef, useState } from "react"
+import { ComponentType, Suspense, lazy as reactLazy, useEffect, useRef, useState } from "react"
 import { Toaster } from "sonner"
 import { ChevronDown, Keyboard, Sparkles } from "lucide-react"
 import { useResume } from "./hooks/useResume"
 import { useRoute, navigate } from "./router"
 import { Landing } from "./pages/Landing"
-import { Builder } from "./pages/Builder"
-import { Analyze } from "./pages/Analyze"
-import { Templates } from "./pages/Templates"
-import { CoverLetter } from "./pages/CoverLetter"
-import { Settings } from "./pages/Settings"
-import { Interview } from "./pages/Interview"
-import { Privacy } from "./pages/Privacy"
-import { Terms } from "./pages/Terms"
-import { Refund } from "./pages/Refund"
-import { Pricing } from "./pages/Pricing"
-import { AuthPage } from "./pages/Auth"
-import { VerifyEmail } from "./pages/VerifyEmail"
-import { Account } from "./pages/Account"
-import { Applications } from "./pages/Applications"
-import { Admin } from "./pages/Admin"
-import { LinkedIn } from "./pages/LinkedIn"
 import { useAccount } from "./lib/auth"
 import { useTheme, loadStore } from "./lib/storage"
 import { createSampleResume } from "./data/sample"
 import { readSharedResume, clearShareParam } from "./lib/share"
 import { useInstallPrompt } from "./lib/pwa"
-import { exportResumePdf } from "./lib/exportFlow"
 import { ShortcutsModal } from "./components/ShortcutsModal"
 import { BottomSheet } from "./components/BottomSheet"
 import { DialogHost, confirmDialog } from "./components/ui/dialogs"
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "./components/ui/menu"
 import { AI_TOOLS } from "./lib/aiTools"
+
+// Route-level code splitting keeps the landing page light; each tool loads on first visit.
+// After a deploy, a tab opened earlier may request chunk files that no longer
+// exist; reload once to pick up the new build instead of showing a crash screen.
+function lazy<T extends ComponentType<any>>(load: () => Promise<{ default: T }>) {
+  const key = "resumate.chunk-reload"
+  return reactLazy(() => load().then((module) => {
+    try { sessionStorage.removeItem(key) } catch { /* ignore */ }
+    return module
+  }, (error) => {
+    let reloaded = false
+    // Without storage we cannot tell a retry apart, so never auto-reload.
+    try { reloaded = sessionStorage.getItem(key) === "1"; sessionStorage.setItem(key, "1") } catch { reloaded = true }
+    if (!reloaded) {
+      window.location.reload()
+      return new Promise<{ default: T }>(() => undefined)
+    }
+    throw error
+  }))
+}
+const Coach = lazy(() => import("./pages/Coach").then((m) => ({ default: m.Coach })))
+const Builder = lazy(() => import("./pages/Builder").then((m) => ({ default: m.Builder })))
+const Analyze = lazy(() => import("./pages/Analyze").then((m) => ({ default: m.Analyze })))
+const Templates = lazy(() => import("./pages/Templates").then((m) => ({ default: m.Templates })))
+const CoverLetter = lazy(() => import("./pages/CoverLetter").then((m) => ({ default: m.CoverLetter })))
+const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })))
+const Interview = lazy(() => import("./pages/Interview").then((m) => ({ default: m.Interview })))
+const Privacy = lazy(() => import("./pages/Privacy").then((m) => ({ default: m.Privacy })))
+const Terms = lazy(() => import("./pages/Terms").then((m) => ({ default: m.Terms })))
+const Refund = lazy(() => import("./pages/Refund").then((m) => ({ default: m.Refund })))
+const Pricing = lazy(() => import("./pages/Pricing").then((m) => ({ default: m.Pricing })))
+const AuthPage = lazy(() => import("./pages/Auth").then((m) => ({ default: m.AuthPage })))
+const VerifyEmail = lazy(() => import("./pages/VerifyEmail").then((m) => ({ default: m.VerifyEmail })))
+const Account = lazy(() => import("./pages/Account").then((m) => ({ default: m.Account })))
+const Applications = lazy(() => import("./pages/Applications").then((m) => ({ default: m.Applications })))
+const Admin = lazy(() => import("./pages/Admin").then((m) => ({ default: m.Admin })))
+const LinkedIn = lazy(() => import("./pages/LinkedIn").then((m) => ({ default: m.LinkedIn })))
 
 const APP_NAV = [
   { path: "/builder", label: "Editor" },
@@ -200,7 +219,7 @@ export default function App() {
       if (mod && (key === "s" || key === "p") && !e.shiftKey && !e.altKey) {
         if (route === "/builder") {
           e.preventDefault()
-          void exportResumePdf(resume, effectivePlan)
+          void import("./lib/exportFlow").then(({ exportResumePdf }) => exportResumePdf(resume, effectivePlan))
         }
         return
       }
@@ -289,6 +308,7 @@ export default function App() {
       </nav>
 
       <main className="main" id="main">
+        <Suspense fallback={<div className="route-loading" role="status" aria-live="polite"><span className="route-spinner" aria-hidden="true" />Loading…</div>}>
         {route === "/" && (
           <Landing
             onStartBlank={() => {
@@ -334,6 +354,7 @@ export default function App() {
         {route === "/login" && <AuthPage mode="login" onAuthenticated={account.refresh} />}
         {route === "/verify-email" && <VerifyEmail onVerified={account.refresh} />}
         {route === "/account" && <Account user={account.user} onChanged={account.refresh} />}
+        </Suspense>
       </main>
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
       <BottomSheet open={showMobileNav} title="Go to" onClose={() => setShowMobileNav(false)}>
