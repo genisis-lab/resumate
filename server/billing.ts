@@ -144,7 +144,7 @@ export async function createWhopCheckout(
       mode: "payment",
       redirect_url: `${origin}/account?checkout=return`,
     }),
-    redirect: "error",
+    redirect: "manual",
     signal: AbortSignal.timeout(10_000),
   })
   if (!upstream.ok) {
