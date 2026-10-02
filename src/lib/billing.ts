@@ -28,7 +28,15 @@ export async function beginUpgrade(plan: Exclude<PlanId, "free">): Promise<void>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ plan }),
   })
-  if (!response.ok) throw new Error(response.status === 401 ? "Sign in before upgrading." : "Checkout is temporarily unavailable.")
+  if (!response.ok) {
+    const messages: Record<number, string> = {
+      401: "Sign in before upgrading.",
+      403: "Verify your email before upgrading.",
+      409: "You already have an active paid plan. Manage billing from your account before changing plans.",
+      429: "Too many checkout attempts. Please wait 15 minutes before trying again.",
+    }
+    throw new Error(messages[response.status] || "Checkout is temporarily unavailable. Please try again later.")
+  }
   const data: unknown = await response.json()
   const purchaseUrl = data && typeof data === "object" && !Array.isArray(data)
     ? (data as Record<string, unknown>).purchaseUrl

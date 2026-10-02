@@ -198,7 +198,7 @@ describe("inactive Whop billing boundary", () => {
     const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
       const payload = JSON.parse(String(init.body)) as Record<string, unknown>
       expect(payload).toMatchObject({
-        company_id: config.WHOP_BUSINESS_ID,
+        account_id: config.WHOP_BUSINESS_ID,
         plan_id: config.WHOP_RESUMATE_SPRINT_PLAN_ID,
         metadata: {
           resumate_user_id: USER_ID,
@@ -211,7 +211,7 @@ describe("inactive Whop billing boundary", () => {
       expect(init.signal).toBeInstanceOf(AbortSignal)
       return Response.json({
         id: "ch_resumate123",
-        company_id: config.WHOP_BUSINESS_ID,
+        account_id: config.WHOP_BUSINESS_ID,
         plan: { id: config.WHOP_RESUMATE_SPRINT_PLAN_ID },
         metadata: {
           resumate_user_id: USER_ID,
@@ -233,6 +233,33 @@ describe("inactive Whop billing boundary", () => {
       checkoutId: "ch_resumate123",
       planId: config.WHOP_RESUMATE_SPRINT_PLAN_ID,
     })
+  })
+
+  it.each([null, undefined])("accepts metadata redacted by a create-only key (%s)", async (metadata) => {
+    const db = database()
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({
+      id: "ch_resumate123", account_id: config.WHOP_BUSINESS_ID,
+      plan: { id: config.WHOP_RESUMATE_PRO_PLAN_ID }, metadata,
+      purchase_url: "https://whop.com/checkout/ch_resumate123",
+    })))
+    const response = await createWhopCheckout(sameOriginRequest("/api/billing/checkout", { plan: "pro" }), { ...config, DB: db } as never, "pro")
+    expect(response.status).toBe(200)
+  })
+
+  it.each([
+    { account_id: "biz_other12345" },
+    { plan: { id: config.WHOP_RESUMATE_SPRINT_PLAN_ID } },
+    { metadata: { resumate_user_id: "someone-else" } },
+    { metadata: [] },
+    { purchase_url: "https://whop.com.evil.example/checkout/ch_resumate123" },
+  ])("rejects mismatched checkout data %j", async (overrides) => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({
+      id: "ch_resumate123", account_id: config.WHOP_BUSINESS_ID,
+      plan: { id: config.WHOP_RESUMATE_PRO_PLAN_ID }, metadata: null,
+      purchase_url: "https://whop.com/checkout/ch_resumate123", ...overrides,
+    })))
+    const response = await createWhopCheckout(sameOriginRequest("/api/billing/checkout", { plan: "pro" }), { ...config, DB: database() } as never, "pro")
+    expect(response.status).toBe(502)
   })
 
   it("rate limits repeated checkout-configuration creation before calling Whop", async () => {

@@ -134,7 +134,7 @@ export async function createWhopCheckout(
       "Idempotency-Key": crypto.randomUUID(),
     },
     body: JSON.stringify({
-      company_id: config.businessId,
+      account_id: config.businessId,
       plan_id: planId,
       metadata: {
         resumate_user_id: user.id,
@@ -147,7 +147,11 @@ export async function createWhopCheckout(
     redirect: "error",
     signal: AbortSignal.timeout(10_000),
   })
-  if (!upstream.ok) return text("Checkout is temporarily unavailable", 502)
+  if (!upstream.ok) {
+    // Never log the response body: it may contain customer data or credentials.
+    console.error("whop_checkout_failed", { stage: "upstream", status: upstream.status })
+    return text("Checkout is temporarily unavailable", 502)
+  }
   const data: unknown = await upstream.json()
   if (!data || typeof data !== "object" || Array.isArray(data)) return text("Checkout returned an invalid response", 502)
   const responseData = data as Record<string, unknown>
@@ -155,13 +159,20 @@ export async function createWhopCheckout(
   const responsePlan = objectValue(responseData.plan)
   const responseMetadata = objectValue(responseData.metadata)
   const purchaseUrl = responseData.purchase_url
-  if (typeof checkoutId !== "string" || !/^ch_[A-Za-z0-9]{6,100}$/.test(checkoutId)
-    || !matchesExpectedId([responseData.company_id, responseData.account_id], config.businessId)
-    || responsePlan?.id !== planId
-    || responseMetadata?.resumate_user_id !== user.id
-    || responseMetadata?.resumate_plan !== plan
-    || responseMetadata?.resumate_product_id !== config.productId
-    || typeof purchaseUrl !== "string" || !safeWhopPurchaseUrl(purchaseUrl)) {
+  // Whop redacts the echo of metadata without checkout_configuration:basic:read.
+  // We send account-binding metadata on creation; signed webhooks still require it.
+  // If Whop does echo metadata, reject any mismatch rather than ignoring it.
+  const checks = {
+    checkoutId: typeof checkoutId === "string" && /^ch_[A-Za-z0-9]{6,100}$/.test(checkoutId),
+    account: matchesExpectedId([responseData.company_id, responseData.account_id], config.businessId),
+    plan: responsePlan?.id === planId,
+    metadata: responseData.metadata == null || (responseMetadata?.resumate_user_id === user.id
+      && responseMetadata?.resumate_plan === plan
+      && responseMetadata?.resumate_product_id === config.productId),
+    purchaseUrl: typeof purchaseUrl === "string" && safeWhopPurchaseUrl(purchaseUrl),
+  }
+  if (Object.values(checks).some((valid) => !valid)) {
+    console.error("whop_checkout_failed", { stage: "response_validation", checks })
     return text("Checkout returned an invalid response", 502)
   }
   await trackConversion(env, "checkout_created", user.id, { plan })
