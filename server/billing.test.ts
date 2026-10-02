@@ -208,6 +208,7 @@ describe("inactive Whop billing boundary", () => {
       })
       expect(new Headers(init.headers).get("Authorization")).toBe(`Bearer ${config.WHOP_API_KEY}`)
       expect(new Headers(init.headers).get("Api-Version-Date")).toBe("2026-08-25-2")
+      expect(init.redirect).toBe("manual")
       expect(init.signal).toBeInstanceOf(AbortSignal)
       return Response.json({
         id: "ch_resumate123",
