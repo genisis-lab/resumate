@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { confirmDialog } from "../components/ui/dialogs"
 import type { AccountUser } from "../lib/auth"
 
 type AdminOverview = {
@@ -45,7 +46,7 @@ export function Admin({ user }: { user: AccountUser | null }) {
       setError("Add a support reason of at least 10 characters.")
       return
     }
-    if (!confirm(`Sign out every active session for ${target.email}?`)) return
+    if (!(await confirmDialog({ title: `Sign out every active session for ${target.email}?`, description: "The user will need to sign in again on every device.", confirmLabel: "Revoke sessions", tone: "danger" }))) return
     setPending(true)
     setError("")
     try {

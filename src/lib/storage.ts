@@ -1,11 +1,16 @@
-import { Resume } from "../types/resume"
+import { useEffect, useState } from "react"
+import { Density, Resume } from "../types/resume"
 import { createEmptyResume } from "../data/sample"
+import { isTemplateId } from "../templates/registry"
+
+const DENSITIES: readonly Density[] = ["compact", "cozy", "roomy"]
 
 // Backfill fields that may be missing on older / imported / shared resumes so
 // new features never crash on legacy data.
 export function normalizeResume(r: any): Resume {
   const base = createEmptyResume(r?.name || "My Resume")
   const s = (r && r.settings) || {}
+  const fontScale = Number(s.fontScale)
   return {
     ...base,
     ...r,
@@ -20,6 +25,11 @@ export function normalizeResume(r: any): Resume {
     settings: {
       ...base.settings,
       ...s,
+      template: isTemplateId(s.template) ? s.template : base.settings.template,
+      accent: typeof s.accent === "string" && /^#[0-9a-f]{6}$/i.test(s.accent) ? s.accent : base.settings.accent,
+      fontScale: Number.isFinite(fontScale) ? Math.min(1.15, Math.max(0.8, fontScale)) : base.settings.fontScale,
+      density: DENSITIES.includes(s.density) ? s.density : undefined,
+      paperSize: s.paperSize === "a4" ? "a4" : undefined,
       sectionOrder:
         Array.isArray(s.sectionOrder) && s.sectionOrder.length
           ? s.sectionOrder
@@ -132,6 +142,17 @@ export function getTheme(): "light" | "dark" {
 export function setTheme(theme: "light" | "dark"): void {
   safeSet(THEME_KEY, theme)
   document.documentElement.dataset.theme = theme
+  window.dispatchEvent(new CustomEvent("resumate-theme", { detail: theme }))
+}
+
+export function useTheme(): ["light" | "dark", (theme: "light" | "dark") => void] {
+  const [theme, setThemeState] = useState<"light" | "dark">(getTheme())
+  useEffect(() => {
+    const onChange = (event: Event) => setThemeState((event as CustomEvent<"light" | "dark">).detail)
+    window.addEventListener("resumate-theme", onChange)
+    return () => window.removeEventListener("resumate-theme", onChange)
+  }, [])
+  return [theme, setTheme]
 }
 
 // ---- Import / Export JSON ----
@@ -208,6 +229,11 @@ export async function importAllJSON(file: File, options?: { replaceSingleId?: st
   store.resumes = Array.from(byId.values())
   persistStore(store)
   return incoming.length
+}
+
+// Version labels distinguish saved resumes that share the same candidate name.
+export function resumeLabel(r: Pick<Resume, "name" | "contact">): string {
+  return r.name.trim() || r.contact.fullName.trim() || "Untitled resume"
 }
 
 // ---- Duplicate a saved resume ----

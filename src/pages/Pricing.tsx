@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { PREMIUM_TEMPLATE_COUNT, TEMPLATES } from "../templates/registry"
 import { BILLING_STATE, beginUpgrade, type PlanId } from "../lib/billing"
 import { navigate } from "../router"
 
@@ -23,8 +24,9 @@ const PLANS = [
       "5 job-specific resume versions",
       "Expanded local ATS checks",
       "40 Cloudflare-hosted AI actions during the 30-day pass",
-      "AI job match, tailoring, rewriting, cover letters, and interview prep",
-      "All templates and unlimited PDF/Word exports",
+      "AI resume review, job match, tailoring, rewriting, cover letters, and interview prep",
+      "LinkedIn optimizer, job decoder, and follow-up and thank-you emails",
+      `All ${TEMPLATES.length} templates, including ${PREMIUM_TEMPLATE_COUNT} Premium designs, and unlimited PDF/Word exports`,
       "Interview tools and 30-day cloud sync when available",
     ],
     action: "Get launch notice",
@@ -41,7 +43,8 @@ const PLANS = [
       "Unlimited resumes, jobs, and applications",
       "Hosted parser testing when available",
       "150 Cloudflare-hosted AI actions each month",
-      "AI job match, tailoring, rewriting, cover letters, and interview prep",
+      "Every AI tool: resume review, LinkedIn optimizer, job decoder, cover letters, and interview prep",
+      `All ${TEMPLATES.length} templates and unlimited PDF/Word exports`,
       "Version history and multi-device sync when available",
       "Priority support and 25 active share links",
     ],
@@ -52,7 +55,7 @@ const PLANS = [
 
 const COMPARISON = [
   { feature: "Active resumes", free: "1", sprint: "5 versions", pro: "Unlimited" },
-  { feature: "Templates", free: "3 ATS-safe", sprint: "All 9", pro: "All 9" },
+  { feature: "Templates", free: "3 ATS-safe + preview all", sprint: `All ${TEMPLATES.length}`, pro: `All ${TEMPLATES.length}` },
   { feature: "PDF or Word exports", free: "3 / month", sprint: "Unlimited", pro: "Unlimited" },
   { feature: "Local ATS checks", free: "5 / month", sprint: "Expanded", pro: "Expanded" },
   { feature: "Hosted AI job match and writing", free: "Not included", sprint: "40 actions / 30 days", pro: "150 actions / month" },
@@ -63,7 +66,7 @@ const COMPARISON = [
 const FAQS = [
   {
     question: "Is ResuMate still free?",
-    answer: "Yes. The free tier includes one resume, three ATS-safe templates, five local ATS checks each month, and three PDF or Word exports each month.",
+    answer: "Yes. The free tier includes one resume, three ATS-safe templates, five local ATS checks each month, and three PDF or Word exports each month. You can preview every Premium template on your own resume before deciding to upgrade.",
   },
   {
     question: "Which resume analysis is paid?",
@@ -83,7 +86,7 @@ const FAQS = [
   },
   {
     question: "What counts as an AI action?",
-    answer: "One hosted request uses one action at launch, whether it is a match report, bullet rewrite, tailored summary, proofreading pass, cover letter, or interview pack. ResuMate will disclose any future change before you run a request.",
+    answer: "One hosted request uses one action, whether it is a match report, resume review, bullet rewrite, tailored summary, LinkedIn profile, job breakdown, cover letter, email, or interview pack. If the AI can't produce a valid answer, the action is not counted. ResuMate will disclose any future change before you run a request.",
   },
   {
     question: "What happens when I reach a limit?",

@@ -20,11 +20,25 @@
   },
   "dependencies": {
     "@fontsource-variable/manrope": "^5.2.8",
+    "@fontsource/eb-garamond": "5.3.0",
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@fontsource/ibm-plex-sans": "5.3.0",
+    "@fontsource/inter": "5.3.0",
+    "@fontsource/manrope": "5.3.0",
+    "@fontsource/playfair-display": "5.3.0",
+    "@fontsource/space-grotesk": "5.3.0",
+    "@radix-ui/react-alert-dialog": "1.1.23",
+    "@radix-ui/react-dialog": "1.1.23",
+    "@radix-ui/react-dropdown-menu": "2.1.24",
+    "@radix-ui/react-popover": "1.1.23",
     "@whop/sdk": "1.0.14",
+    "cmdk": "1.1.1",
+    "lucide-react": "1.46.0",
     "pdfjs-dist": "^4.8.69",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "sonner": "2.0.8"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260828.1",

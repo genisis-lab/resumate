@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
 import { Resume } from "../types/resume"
 import { buildShareUrl } from "../lib/share"
 
@@ -47,7 +48,7 @@ export function ShareModal({ resume, onClose }: { resume: Resume; onClose: () =>
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
-      prompt("Copy this read-only share link:", url)
+      toast.error("Couldn't copy automatically. Select the link and copy it manually.")
     }
   }
 

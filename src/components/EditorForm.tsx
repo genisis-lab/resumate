@@ -1,5 +1,4 @@
 import { ReviewEdits } from "./ReviewEdits"
-import { navigate } from "../router"
 import { useEffect, useRef, useState } from "react"
 import { Resume, SectionKey, SECTION_LABELS } from "../types/resume"
 import { uid } from "../lib/id"
@@ -11,15 +10,20 @@ import {
   TextField,
 } from "./fields"
 import { CustomSectionsEditor } from "./CustomSections"
+import { TagInput } from "./ui/TagInput"
+import { Sparkles } from "lucide-react"
+import type { PlanId } from "../lib/billing"
 
 type Setter = (updater: (r: Resume) => Resume) => void
 
 export function EditorForm({
   resume,
   setResume,
+  plan = "free",
 }: {
   resume: Resume
   setResume: (r: Resume | ((prev: Resume) => Resume)) => void
+  plan?: PlanId
 }) {
   const [summaryReview, setSummaryReview] = useState<{original: string; suggestion: string} | null>(null)
   const latestResume = useRef(resume)
@@ -95,7 +99,6 @@ export function EditorForm({
 
   return (
     <div className="editor" ref={editorRef}>
-      <button className="btn-secondary" onClick={() => navigate("/coach")}>AI coach · Build a role, review grammar, and check consistency</button>
       {/* Contact */}
       <div className="editor-section">
         <h3 className="editor-section-title">Contact</h3>
@@ -116,7 +119,7 @@ export function EditorForm({
         <div className="editor-section-head">
           <h3 className="editor-section-title">{SECTION_LABELS.summary}</h3>
           <button className="btn-ghost small" disabled={writingSummary} onClick={writeSummary} title="Let AI draft a summary from your resume">
-            {writingSummary ? "Writing\u2026" : "\u2728 Write with AI"}
+            <Sparkles size={14} aria-hidden="true" /> {writingSummary ? "Writing\u2026" : "Write with AI"}
           </button>
         </div>
         <TextArea
@@ -213,7 +216,7 @@ export function EditorForm({
             onMoveDown={() => update((r) => ({ ...r, skills: moveArr(r.skills, i, 1) }))}
           >
             <TextField label="Category" value={g.category} onChange={(v) => patchSkill(update, g.id, { category: v })} placeholder="Languages, Tools, etc." />
-            <TextArea label="Skills" hint="comma-separated" rows={2} value={g.items.join(", ")} onChange={(v) => patchSkill(update, g.id, { items: v.split(",").map((s) => s.trim()).filter(Boolean) })} placeholder="React, TypeScript, Figma…" />
+            <TagInput label="Skills" hint="Enter or comma to add" values={g.items} onChange={(items) => patchSkill(update, g.id, { items })} placeholder="React, TypeScript, Figma…" />
           </Collapsible>
         ))}
         {resume.skills.length > 0 && <div className="entry-add-footer"><button className="btn-ghost small" onClick={() => update((r) => ({ ...r, skills: [...r.skills, { id: uid("sk"), category: "", items: [] }] }))}>+ Add group</button></div>}

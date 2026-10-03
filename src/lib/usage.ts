@@ -1,5 +1,6 @@
 import type { PlanId } from "./billing"
 import type { TemplateId } from "../types/resume"
+import { FREE_TEMPLATE_IDS } from "../templates/registry"
 
 export const FREE_PLAN_LIMITS = {
   activeResumes: 1,
@@ -7,7 +8,7 @@ export const FREE_PLAN_LIMITS = {
   localAtsChecks: 5,
 } as const
 
-export const FREE_TEMPLATE_IDS = ["modern", "classic", "ats"] as const satisfies readonly TemplateId[]
+export { FREE_TEMPLATE_IDS }
 
 export type MeteredLocalAction = "documentExports" | "localAtsChecks"
 
@@ -106,5 +107,5 @@ export function consumeUsage(
 }
 
 export function canUseTemplate(plan: PlanId, template: TemplateId): boolean {
-  return plan !== "free" || (FREE_TEMPLATE_IDS as readonly TemplateId[]).includes(template)
+  return plan !== "free" || FREE_TEMPLATE_IDS.includes(template)
 }

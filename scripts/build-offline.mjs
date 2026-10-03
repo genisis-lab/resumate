@@ -31,7 +31,10 @@ await build({
   format: "esm",
   target: ["es2020"],
   jsx: "automatic",
-  loader: { ".tsx": "tsx", ".ts": "ts" },
+  // Self-hosted @fontsource files are emitted next to the bundle.
+  loader: { ".tsx": "tsx", ".ts": "ts", ".woff2": "file", ".woff": "file" },
+  assetNames: "[name]-[hash]",
+  publicPath: "/assets",
   define: { "process.env.NODE_ENV": '"production"' },
   nodePaths,
   outfile: join(assets, "app.js"),

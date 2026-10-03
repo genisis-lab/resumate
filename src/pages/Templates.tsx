@@ -1,22 +1,31 @@
+import { useMemo, useState } from "react"
+import * as Dialog from "@radix-ui/react-dialog"
+import { ArrowLeft, Check, Lock, X } from "lucide-react"
 import { Resume, TemplateId } from "../types/resume"
 import { ResumePreview } from "../templates/ResumePreview"
+import { PaperFrame } from "../components/PaperFrame"
 import { createSampleResume } from "../data/sample"
 import { navigate } from "../router"
 import type { PlanId } from "../lib/billing"
 import { canUseTemplate } from "../lib/usage"
+import { TEMPLATES, TemplateTag, templateMeta } from "../templates/registry"
 
-const TEMPLATES: { id: TemplateId; label: string; desc: string }[] = [
-  { id: "professional", label: "Professional Serif", desc: "Serif headings, a clean sans-serif body, and company-first experience. A traditional layout for detailed resumes." },
-  { id: "modern", label: "Modern", desc: "Polished with a subtle accent color. Great all-rounder." },
-  { id: "classic", label: "Classic", desc: "Traditional serif headings for corporate roles." },
-  { id: "minimal", label: "Minimal", desc: "Lots of whitespace, lightweight and clean." },
-  { id: "ats", label: "ATS-Safe", desc: "Single column, standard headings, maximum parseability." },
-  { id: "twocolumn", label: "Two-Column", desc: "Skills & education in a sidebar, experience in the main column." },
-  { id: "creative", label: "Creative", desc: "Bold accent header and section underlines for design-forward roles." },
-  { id: "executive", label: "Executive", desc: "Confident hierarchy and conservative rules for senior leadership roles." },
-  { id: "compact", label: "Compact", desc: "Dense single-column structure for experienced candidates with more to fit." },
-  { id: "technical", label: "Technical", desc: "Clear skills, projects, and experience hierarchy for engineering and data roles." },
+type Filter = "all" | "free" | "premium" | TemplateTag
+
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "free", label: "Free" },
+  { id: "premium", label: "Premium" },
+  { id: "ATS-friendly", label: "ATS-friendly" },
+  { id: "Two-column", label: "Two-column" },
+  { id: "Serif", label: "Serif" },
+  { id: "Creative", label: "Creative" },
+  { id: "Technical", label: "Technical" },
 ]
+
+function hasOwnContent(r: Resume): boolean {
+  return Boolean(r.contact.fullName.trim() && (r.experience.length || r.summary.trim()))
+}
 
 export function Templates({
   resume,
@@ -27,42 +36,108 @@ export function Templates({
   setResume: (r: Resume | ((p: Resume) => Resume)) => void
   plan: PlanId
 }) {
-  const demo = createSampleResume()
+  const sample = useMemo(() => createSampleResume(), [])
+  const ownContent = hasOwnContent(resume)
+  const [useMine, setUseMine] = useState(ownContent)
+  const [filter, setFilter] = useState<Filter>("all")
+  const [previewId, setPreviewId] = useState<TemplateId | null>(null)
+  const base = useMine && ownContent ? resume : { ...sample, settings: { ...sample.settings, accent: resume.settings.accent } }
+  const visible = TEMPLATES.filter((t) => filter === "all" || (filter === "free" ? t.tier === "free" : filter === "premium" ? t.tier === "premium" : t.tags.includes(filter)))
+
+  function withTemplate(id: TemplateId): Resume {
+    return { ...base, settings: { ...base.settings, template: id } }
+  }
+
   function choose(id: TemplateId) {
-    if (!canUseTemplate(plan, id)) {
-      navigate("/pricing")
-      return
-    }
     setResume((r) => ({ ...r, settings: { ...r.settings, template: id } }))
     navigate("/builder")
   }
+
+  const preview = previewId ? templateMeta(previewId) : null
+
   return (
     <div className="templates-page">
-      <div className="analyze-head">
-        <button className="btn-ghost small" onClick={() => navigate("/builder")}>← Back to editor</button>
+      <header className="page-header">
+        <button className="btn-ghost small back-link" onClick={() => navigate("/builder")}><ArrowLeft size={15} aria-hidden="true" /> Back to editor</button>
         <h1>Templates</h1>
-        <p className="muted">Pick a starting point. You can switch any time without losing your content.</p>
+        <p className="page-sub">Switch any time without losing content. Free plans can preview every Premium template on their own resume before upgrading to download it.</p>
+      </header>
+
+      <div className="template-toolbar">
+        <div className="filter-chips" role="group" aria-label="Filter templates">
+          {FILTERS.map((item) => (
+            <button key={item.id} type="button" className={`chip ${filter === item.id ? "active" : ""}`} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.label}</button>
+          ))}
+        </div>
+        {ownContent && (
+          <div className="segmented" role="radiogroup" aria-label="Preview content">
+            <button type="button" role="radio" aria-checked={useMine} onClick={() => setUseMine(true)}>My resume</button>
+            <button type="button" role="radio" aria-checked={!useMine} onClick={() => setUseMine(false)}>Sample</button>
+          </div>
+        )}
       </div>
+
       <div className="template-gallery">
-        {TEMPLATES.map((t) => {
-          const preview = { ...demo, settings: { ...demo.settings, template: t.id, accent: resume.settings.accent } }
+        {visible.map((t) => {
           const available = canUseTemplate(plan, t.id)
+          const current = resume.settings.template === t.id
           return (
-            <div className={`template-card ${resume.settings.template === t.id ? "active" : ""}${available ? "" : " locked"}`} key={t.id}>
-              <div className="template-thumb">
-                <div className="thumb-scale">
-                  <ResumePreview resume={preview} />
+            <article className={`template-card${current ? " active" : ""}`} key={t.id}>
+              <button type="button" className="template-thumb" onClick={() => setPreviewId(t.id)} aria-label={`Preview the ${t.label} template`}>
+                <PaperFrame size="letter">
+                  <ResumePreview resume={withTemplate(t.id)} />
+                </PaperFrame>
+                <span className="template-badges">
+                  {t.isNew && <span className="template-badge new">New</span>}
+                  {t.tier === "premium" && <span className="template-badge premium">{available ? "Premium" : <><Lock size={11} aria-hidden="true" /> Premium</>}</span>}
+                </span>
+              </button>
+              <div className="template-info">
+                <div className="template-title-row">
+                  <h3>{t.label}</h3>
+                  {current && <span className="current-tag"><Check size={12} aria-hidden="true" /> Current</span>}
+                </div>
+                <p>{t.description}</p>
+                <div className="template-tags">{t.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
+                <div className="template-actions">
+                  <button className="btn-primary small" onClick={() => choose(t.id)}>{current ? "Open in editor" : available ? "Use template" : "Try it free"}</button>
+                  {!available && <button className="btn-ghost small" onClick={() => navigate("/pricing")}>Unlock</button>}
                 </div>
               </div>
-              <div className="template-info">
-                <h3>{t.label}{resume.settings.template === t.id && <span className="current-tag">Current</span>}</h3>
-                <p>{t.desc}</p>
-                <button className={available ? "btn-primary small" : "btn-ghost small"} onClick={() => choose(t.id)}>{available ? "Use this template" : "Available on paid plans"}</button>
-              </div>
-            </div>
+            </article>
           )
         })}
       </div>
+
+      <Dialog.Root open={Boolean(preview)} onOpenChange={(open) => { if (!open) setPreviewId(null) }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="dialog-overlay" />
+          <Dialog.Content className="dialog-content template-preview-dialog">
+            {preview && (
+              <>
+                <div className="template-preview-head">
+                  <div>
+                    <Dialog.Title className="dialog-title">{preview.label}</Dialog.Title>
+                    <Dialog.Description className="dialog-description">{preview.description}</Dialog.Description>
+                  </div>
+                  <Dialog.Close asChild>
+                    <button className="icon-btn" aria-label="Close preview"><X size={18} aria-hidden="true" /></button>
+                  </Dialog.Close>
+                </div>
+                <div className="template-preview-body">
+                  <PaperFrame size="letter">
+                    <ResumePreview resume={withTemplate(preview.id)} />
+                  </PaperFrame>
+                </div>
+                <div className="dialog-actions">
+                  {!canUseTemplate(plan, preview.id) && <button className="btn-ghost" onClick={() => navigate("/pricing")}>See plans</button>}
+                  <button className="btn-primary" onClick={() => choose(preview.id)}>{canUseTemplate(plan, preview.id) ? "Use this template" : "Try it on my resume"}</button>
+                </div>
+              </>
+            )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { confirmDialog } from "../components/ui/dialogs"
 import { AccountUser, deleteAccount, logoutAccount } from "../lib/auth"
 import { navigate } from "../router"
 
@@ -39,7 +40,7 @@ export function Account({ user, onChanged }: { user: AccountUser | null; onChang
       setError("Enter your password to delete your account.")
       return
     }
-    if (!confirm("Delete your ResuMate account? This cannot be undone. Resumes saved in this browser will remain unless you clear them separately.")) return
+    if (!(await confirmDialog({ title: "Delete your ResuMate account?", description: "This cannot be undone. Resumes saved in this browser will remain unless you clear them separately.", confirmLabel: "Delete account", tone: "danger" }))) return
     setDeleting(true)
     try {
       await deleteAccount(deletePassword)

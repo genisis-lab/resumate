@@ -150,12 +150,14 @@ describe("AI proxy boundary", () => {
     vi.stubGlobal("fetch", fetchMock)
     const response = await invoke(analyze, request("/api/analyze", {
       resumeText: "Resume",
-      jobDescription: "Job",
+      jobDescription: "Senior engineer with TypeScript and Cloudflare Workers experience",
     }))
     expect(response.status).toBe(200)
     const data = await response.json() as Record<string, unknown>
     expect(data.score).toBe(91)
     expect(data.matchedKeywords).toEqual(["TypeScript", "Cloudflare"])
+    // Keywords that never appear in the job description are dropped.
+    expect(data.missingKeywords).toEqual([])
   })
 
   it("rejects structured output outside the declared bounds", async () => {

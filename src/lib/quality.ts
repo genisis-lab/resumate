@@ -33,6 +33,43 @@ const WEAK_VERBS = [
   "duties included",
 ]
 
+// Overused phrases recruiters skim past. Flagged, never auto-replaced.
+export const CLICHES = [
+  "results-driven",
+  "results driven",
+  "hard-working",
+  "hardworking",
+  "team player",
+  "go-getter",
+  "self-starter",
+  "detail-oriented",
+  "think outside the box",
+  "synergy",
+  "proven track record",
+  "dynamic",
+  "passionate",
+  "rockstar",
+  "ninja",
+]
+
+export function findCliches(text: string): string[] {
+  const lower = text.toLowerCase()
+  return CLICHES.filter((phrase) => new RegExp(`(^|[^a-z])${phrase.replace(/[-\s]/g, "[-\\s]")}([^a-z]|$)`).test(lower))
+    .filter((phrase, index, list) => !list.slice(0, index).some((earlier) => earlier.replace(/[-\s]/g, "") === phrase.replace(/[-\s]/g, "")))
+}
+
+// Classify a free-text date so mixed styles ("Jan 2021", "2019", "03/2020") can be flagged.
+export function dateStyle(value: string): string | null {
+  const v = value.trim()
+  if (!v || /^(present|current|now)$/i.test(v)) return null
+  if (/^\d{4}$/.test(v)) return "year"
+  if (/^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\.?\s+\d{4}$/i.test(v)) return "short-month"
+  if (/^(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}$/i.test(v)) return "long-month"
+  if (/^\d{1,2}\/\d{4}$/.test(v)) return "numeric"
+  if (/^\d{4}-\d{2}$/.test(v)) return "iso"
+  return "other"
+}
+
 export interface QualityFlag {
   severity: "warn" | "info"
   text: string
@@ -110,6 +147,37 @@ export function qualityFlags(r: Resume): QualityFlag[] {
         text: "Your skills are all soft skills. Add concrete hard/technical skills (tools, languages, platforms) that match the job.",
       })
   }
+
+  // Overused phrases in the summary or bullets.
+  const cliches = findCliches([r.summary, r.contact.headline, ...allBullets].join("\n"))
+  if (cliches.length)
+    flags.push({
+      severity: "info",
+      text: `Overused phrase${cliches.length > 1 ? "s" : ""}: ${cliches.slice(0, 4).map((c) => `\u201C${c}\u201D`).join(", ")}. Replace with specific evidence of the quality.`,
+    })
+
+  // Consistent date formatting reads as careful work.
+  const dates = [
+    ...r.experience.flatMap((e) => [e.startDate, e.current ? "" : e.endDate]),
+    ...r.education.flatMap((e) => [e.startDate, e.endDate]),
+  ]
+  const styles = new Set(dates.map(dateStyle).filter((style): style is string => Boolean(style)))
+  if (styles.size > 1)
+    flags.push({ severity: "info", text: "Dates use mixed formats (for example “Jan 2021” and “2019”). Pick one style throughout." })
+
+  const undated = r.experience.filter((e) => (e.role || e.company) && !e.startDate.trim() && !e.endDate.trim() && !e.current)
+  if (undated.length)
+    flags.push({ severity: "warn", text: `${undated.length} role${undated.length > 1 ? "s are" : " is"} missing dates. Recruiters and ATS parsers expect a start and end date.` })
+
+  const sparse = r.experience.filter((e) => (e.role || e.company) && e.bullets.filter((b) => b.trim()).length === 0)
+  if (sparse.length)
+    flags.push({ severity: "warn", text: `${sparse.length} role${sparse.length > 1 ? "s have" : " has"} no bullet points. Add one or two outcomes for each role.` })
+  const crowded = r.experience.filter((e) => e.bullets.filter((b) => b.trim()).length > 7)
+  if (crowded.length)
+    flags.push({ severity: "info", text: `${crowded.length} role${crowded.length > 1 ? "s have" : " has"} more than 7 bullets. Keep the 4 to 6 strongest so each one gets read.` })
+
+  if (r.contact.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.contact.email.trim()))
+    flags.push({ severity: "warn", text: "The email address looks incomplete. Check it before you export." })
 
   return flags
 }

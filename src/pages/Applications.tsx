@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { confirmDialog } from "../components/ui/dialogs"
 import type { Resume } from "../types/resume"
 import { deleteApplication, listApplications, saveApplication, updateApplicationStage, type ApplicationStage, type JobApplication } from "../lib/applications"
 import { navigate } from "../router"
@@ -74,7 +75,7 @@ export function Applications({ resume }: { resume: Resume }) {
               <div className="application-card-head"><div><span>{item.company}</span><h3>{item.role}</h3></div><select className="select" aria-label={`Status for ${item.role} at ${item.company}`} value={item.stage} onChange={(event) => { updateApplicationStage(item.id, event.target.value as ApplicationStage); refresh() }}>{STAGES.map((stage) => <option key={stage.id} value={stage.id}>{stage.label}</option>)}</select></div>
               <p>Using <strong>{item.resumeName || "current resume"}</strong>{item.jobDescription ? " · job description saved" : " · add a job description for smart tools"}</p>
               <div className="application-tools"><button className="btn-ghost small" disabled={!item.jobDescription} onClick={() => openTool(item, "/analyze")}>ATS check</button><button className="btn-ghost small" disabled={!item.jobDescription} onClick={() => openTool(item, "/cover")}>Cover letter</button><button className="btn-ghost small" disabled={!item.jobDescription} onClick={() => openTool(item, "/interview")}>Interview prep</button></div>
-              <div className="application-card-actions"><button className="text-button" onClick={() => edit(item)}>Edit details</button><button className="text-button danger" onClick={() => { if (confirm(`Delete ${item.role} at ${item.company}?`)) { deleteApplication(item.id); refresh() } }}>Delete</button></div>
+              <div className="application-card-actions"><button className="text-button" onClick={() => edit(item)}>Edit details</button><button className="text-button danger" onClick={() => { void confirmDialog({ title: `Delete ${item.role} at ${item.company}?`, description: "The saved job description, notes, and drafts for this application will be removed.", confirmLabel: "Delete", tone: "danger" }).then((ok) => { if (ok) { deleteApplication(item.id); refresh() } }) }}>Delete</button></div>
             </article>)}
           </div>
         )}

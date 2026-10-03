@@ -3,6 +3,8 @@ import React from "react"
 import { aiCoach } from "../lib/ai"
 import { scoreBullet } from "../lib/writingCoach"
 import { ACTION_VERBS } from "../lib/actionVerbs"
+import { readSavedJob } from "../lib/jobContext"
+import { Sparkles } from "lucide-react"
 
 export function TextField({
   label,
@@ -90,6 +92,8 @@ export function BulletEditor({
   const [focused, setFocused] = React.useState<number | null>(null)
   const [showBank, setShowBank] = React.useState(false)
   const [dragIndex, setDragIndex] = React.useState<number | null>(null)
+  const [savedJob] = React.useState(readSavedJob)
+  const [matchJob, setMatchJob] = React.useState(false)
 
   const set = (i: number, v: string) => {
     const next = [...bullets]
@@ -135,7 +139,7 @@ export function BulletEditor({
     setReview(null)
     setBusy(true)
     try {
-      const response = await aiCoach('rewrite', filled.join('\n'), '', JSON.stringify(aiContext || {}))
+      const response = await aiCoach('rewrite', filled.join('\n'), matchJob && savedJob.trim() ? savedJob : '', JSON.stringify(aiContext || {}))
       if (response.items.length !== filled.length || response.items.some((item, i) => item.original !== filled[i])) throw new Error('AI returned mismatched bullets. Your content has not changed.')
       setReview({ originals: filled, suggestions: response.items.map(i => i.suggestion), reasons: response.items.map(i => i.reason), indices: bullets.flatMap((b, i) => b.trim() ? [i] : []) })
     } catch (e) {
@@ -217,8 +221,14 @@ export function BulletEditor({
             onClick={improve}
             title="Rewrite these bullets with stronger, ATS-friendly phrasing"
           >
-            {busy ? "Improving…" : "✨ Improve with AI"}
+            <Sparkles size={14} aria-hidden="true" /> {busy ? "Improving…" : "Improve with AI"}
           </button>
+        )}
+        {aiContext && savedJob.trim().length >= 80 && (
+          <label className="checkbox tiny match-job" title="Uses the job description you pasted in ATS Check, Cover Letter, or Interview prep">
+            <input type="checkbox" checked={matchJob} onChange={(event) => setMatchJob(event.target.checked)} />
+            Match the saved job's wording
+          </label>
         )}
       </div>
       {showBank && (

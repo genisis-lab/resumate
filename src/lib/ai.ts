@@ -34,6 +34,7 @@ async function postGenerate<T>(body: Record<string, unknown>): Promise<T> {
       403: "This AI action requires an eligible plan or a valid provider key.",
       413: "This request is too long. Try fewer bullets at a time.",
       429: "Your AI allowance or rate limit has been reached. Try again later or check your plan.",
+      502: "AI couldn't produce a reliable answer this time. Your content has not changed. Please try again.",
     }
     if (res.status === 501) throw notEnabledError()
     throw new Error(messages[res.status] || "AI is temporarily unavailable. Your content has not changed. Please try again.")
@@ -153,21 +154,66 @@ export async function aiInterviewQuestions(resume: Resume, jobDescription: strin
   return Array.isArray(data.questions) ? data.questions : []
 }
 
-export async function aiRecruiterEmail(resume: Resume, jobDescription: string, tone = "professional"): Promise<string> {
+export type EmailKind = "outreach" | "follow_up" | "thank_you" | "networking"
+
+export async function aiRecruiterEmail(resume: Resume, jobDescription: string, tone = "professional", emailKind: EmailKind = "outreach", details = ""): Promise<string> {
   const data = await postGenerate<{ text: string }>({
     task: "recruiter_email",
     resumeText: resumeToPlainText(resume),
     jobDescription,
     tone,
+    emailKind,
+    ...(details.trim() ? { context: details.trim().slice(0, 2_000) } : {}),
   })
   return data.text || ""
 }
 
-export type CoachMode = 'rewrite' | 'grammar' | 'role' | 'evidence' | 'practice' | 'consistency'
+export interface LinkedInProfile { headline: string; about: string; skills: string[]; highlights: string[] }
+
+export async function aiLinkedIn(resume: Resume, targetRole = ""): Promise<LinkedInProfile> {
+  const data = await postGenerate<Partial<LinkedInProfile>>({
+    task: "linkedin",
+    resumeText: resumeToPlainText(resume),
+    ...(targetRole.trim() ? { targetRole: targetRole.trim().slice(0, 160) } : {}),
+  })
+  if (typeof data.headline !== "string" || typeof data.about !== "string") throw new Error("AI returned an incomplete profile. Please try again.")
+  return { headline: data.headline, about: data.about, skills: Array.isArray(data.skills) ? data.skills : [], highlights: Array.isArray(data.highlights) ? data.highlights : [] }
+}
+
+export interface JobDecode {
+  summary: string
+  seniority: string
+  mustHaves: string[]
+  niceToHaves: string[]
+  responsibilities: string[]
+  keywords: string[]
+  watchOuts: string[]
+  questionsToAsk: string[]
+}
+
+export async function aiDecodeJob(jobDescription: string): Promise<JobDecode> {
+  if (jobDescription.trim().length < 80) throw new Error("Paste at least 80 characters from the job description.")
+  const data = await postGenerate<Partial<JobDecode>>({ task: "job_decode", jobDescription })
+  const list = (value: unknown) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [])
+  if (typeof data.summary !== "string") throw new Error("AI returned an incomplete job breakdown. Please try again.")
+  return {
+    summary: data.summary,
+    seniority: typeof data.seniority === "string" ? data.seniority : "",
+    mustHaves: list(data.mustHaves),
+    niceToHaves: list(data.niceToHaves),
+    responsibilities: list(data.responsibilities),
+    keywords: list(data.keywords),
+    watchOuts: list(data.watchOuts),
+    questionsToAsk: list(data.questionsToAsk),
+  }
+}
+
+export type CoachMode = 'rewrite' | 'grammar' | 'role' | 'evidence' | 'practice' | 'consistency' | 'review'
 export interface CoachResult { items: { original: string; suggestion: string; reason: string; category: string }[]; followUp: string }
 export async function aiCoach(mode: CoachMode, source: string, job = '', context = ''): Promise<CoachResult> {
   if (!source.trim()) throw new Error('Add details before requesting coaching.')
   if (mode === 'evidence' && !job.trim()) throw new Error('Paste the target job description first.')
+  if (source.length + job.length + context.length > 23_500) throw new Error('This request is too long. Shorten the job description or resume before trying again.')
   const result = await postGenerate<CoachResult>({ task: 'coach', mode, resumeText: source, jobDescription: job, context })
   if (!Array.isArray(result.items) || typeof result.followUp !== 'string' || result.items.some(item => !item || ['original', 'suggestion', 'reason', 'category'].some(key => typeof item[key as keyof typeof item] !== 'string'))) throw new Error('AI returned invalid coaching feedback.')
   return result

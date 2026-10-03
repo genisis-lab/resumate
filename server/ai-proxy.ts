@@ -3,6 +3,8 @@ export type AiEnv = Cloudflare.Env & {
   AI_API_KEY?: string
   AI_API_URL?: string
   AI_MODEL?: string
+  /** Optional Workers AI model override; must be one of HOSTED_MODEL_ALLOWLIST. */
+  AI_HOSTED_MODEL?: string
   ADMIN_USER_IDS?: string
   ADMIN_EMAILS?: string
 }
@@ -23,7 +25,7 @@ export interface ExternalAiSettings {
 export interface WorkersAiSettings {
   kind: "workers-ai"
   binding: Ai
-  model: typeof HOSTED_AI_MODEL
+  model: HostedModel
 }
 
 export type AiSettings = ExternalAiSettings | WorkersAiSettings
@@ -42,6 +44,21 @@ export interface JsonSchema {
 
 export const MAX_REQUEST_BYTES = 128 * 1024
 export const HOSTED_AI_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8" as const
+// Workers AI chat models that accept `messages` plus JSON mode and return an
+// OpenAI-style envelope. Qwen3 30B (MoE, 3B active) stays the default: it is
+// the cheapest capable option per neuron. gpt-oss-120b writes better prose at
+// roughly 2x the output cost and 7x the input cost; switch with AI_HOSTED_MODEL
+// after a production smoke test.
+export const HOSTED_MODEL_ALLOWLIST = [
+  HOSTED_AI_MODEL,
+  "@cf/openai/gpt-oss-120b",
+  "@cf/openai/gpt-oss-20b",
+  "@cf/meta/llama-4-scout-17b-16e-instruct",
+  "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+  "@cf/ibm-granite/granite-4.0-h-micro",
+] as const
+export type HostedModel = typeof HOSTED_MODEL_ALLOWLIST[number]
+const DEFAULT_MAX_TOKENS = 1_600
 export const HOSTED_MONTHLY_LIMITS = { sprint: 40, pro: 150 } as const
 const MAX_PROVIDER_BYTES = 512 * 1024
 const PROVIDER_TIMEOUT_MS = 25_000
@@ -425,12 +442,28 @@ export function aiSettings(body: ClientAiOptions, env: AiEnv): AiSettings | null
     return { kind: "external", key: suppliedKey, url: endpoint, model }
   }
 
-  if (env.AI) return { kind: "workers-ai", binding: env.AI, model: HOSTED_AI_MODEL }
+  if (env.AI) {
+    const requested = env.AI_HOSTED_MODEL?.trim()
+    const model = HOSTED_MODEL_ALLOWLIST.find((candidate) => candidate === requested) || HOSTED_AI_MODEL
+    return { kind: "workers-ai", binding: env.AI, model }
+  }
 
   const siteKey = env.AI_API_KEY?.trim()
   const endpoint = exactProviderEndpoint(env.AI_API_URL?.trim() || "https://api.openai.com/v1/chat/completions")
   if (!siteKey || siteKey.length > 400 || /[\u0000-\u001f\u007f]/.test(siteKey) || !endpoint) return null
   return { kind: "external", key: siteKey, url: endpoint, model: defaultModel }
+}
+
+// Qwen3 thinks before answering unless told not to. Hidden reasoning tokens
+// count against max_tokens, so long reasoning truncated answers into invalid
+// JSON, added latency against the timeout, and billed extra output neurons.
+// "/no_think" is Qwen3's documented per-turn switch.
+function withoutThinking(settings: AiSettings, messages: OpenAiMessage[]): OpenAiMessage[] {
+  const qwen3 = /(^|\/)qwen3[-.]/i.test(settings.model.replace(/^@cf\/qwen\//, "qwen/"))
+  if (!qwen3) return messages
+  return messages.map((message, index) => (index === 0 && message.role === "system"
+    ? { ...message, content: `${message.content}\n/no_think` }
+    : message))
 }
 
 export async function callAI(
@@ -439,12 +472,14 @@ export async function callAI(
   jsonMode: boolean,
   temperature = 0.4,
   schema?: JsonSchema,
+  maxTokens = DEFAULT_MAX_TOKENS,
 ): Promise<string> {
+  const prepared = withoutThinking(settings, schema ? withSchemaInstruction(messages, schema) : messages)
   if (settings.kind === "workers-ai") {
     const response = await settings.binding.run(settings.model, {
-      messages,
+      messages: prepared,
       temperature,
-      max_tokens: 1_600,
+      max_tokens: maxTokens,
       ...(jsonMode ? {
         // Qwen's current model-specific types advertise json_schema, but the
         // generic Workers AI compatibility list has not caught up. Use the
@@ -456,14 +491,14 @@ export async function callAI(
       signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
       tags: ["resumate", "hosted"],
     })
-    return contentFromWorkersAi(response)
+    return cleanModelText(contentFromWorkersAi(response))
   }
 
   const payload: Record<string, unknown> = {
     model: settings.model,
     temperature,
-    max_tokens: 1_600,
-    messages,
+    max_tokens: maxTokens,
+    messages: prepared,
   }
   if (jsonMode) payload.response_format = { type: "json_object" }
 
@@ -493,7 +528,27 @@ export async function callAI(
   }
   const content = (data as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message?.content
   if (typeof content !== "string") throw new Error("AI provider returned an invalid response")
-  return content
+  return cleanModelText(content)
+}
+
+// Tell the model the exact JSON shape. JSON mode guarantees syntax only; the
+// schema text steers field names, counts, and enums, and the local validators
+// still enforce every bound.
+function withSchemaInstruction(messages: OpenAiMessage[], schema: JsonSchema): OpenAiMessage[] {
+  const instruction = `Respond with one JSON object that validates against this JSON Schema. Use exactly these keys, no others, and no surrounding prose or code fences:\n${JSON.stringify(schema)}`
+  return messages.map((message, index) => (index === 0 && message.role === "system"
+    ? { ...message, content: `${message.content}\n\n${instruction}` }
+    : message))
+}
+
+// Remove reasoning blocks and markdown fences some models add around answers.
+export function cleanModelText(value: string): string {
+  return value
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/^\s*<think>[\s\S]*$/i, "")
+    .replace(/^\s*```(?:json|text)?\s*\n?/i, "")
+    .replace(/\n?```\s*$/i, "")
+    .trim()
 }
 
 function contentFromWorkersAi(value: unknown): string {
@@ -502,11 +557,27 @@ function contentFromWorkersAi(value: unknown): string {
   const response = value as {
     choices?: Array<{ message?: { content?: unknown }; text?: unknown }>
     response?: unknown
+    output_text?: unknown
+    output?: Array<{ type?: unknown; content?: Array<{ type?: unknown; text?: unknown }> }>
+  }
+  // Responses-API envelope (gpt-oss models).
+  if (typeof response.output_text === "string") return response.output_text
+  if (Array.isArray(response.output)) {
+    const text = response.output
+      .filter((item) => item?.type === "message")
+      .flatMap((item) => item.content || [])
+      .map((part) => (typeof part?.text === "string" ? part.text : ""))
+      .join("")
+    if (text) return text
   }
   const content = response.choices?.[0]?.message?.content
     ?? response.choices?.[0]?.text
     ?? response.response
-  if (typeof content === "string") return content
+  if (typeof content === "string") {
+    // An empty answer usually means reasoning consumed the whole token budget.
+    if (!content.trim()) throw new Error("Workers AI returned an empty answer")
+    return content
+  }
   if (!content || typeof content !== "object" || Array.isArray(content)) {
     throw new Error("Workers AI returned an invalid response")
   }
@@ -539,14 +610,23 @@ export function validString(value: unknown, maximum: number): value is string {
 }
 
 export function parseJsonObject(output: string): Record<string, unknown> | null {
-  try {
-    const parsed: unknown = JSON.parse(output)
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
-      : null
-  } catch {
-    return null
+  const attempt = (text: string): Record<string, unknown> | null => {
+    try {
+      const parsed: unknown = JSON.parse(text)
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? parsed as Record<string, unknown>
+        : null
+    } catch {
+      return null
+    }
   }
+  const cleaned = cleanModelText(output)
+  const direct = attempt(cleaned)
+  if (direct) return direct
+  // Tolerate a short preamble or trailing note around a single JSON object.
+  const first = cleaned.indexOf("{")
+  const last = cleaned.lastIndexOf("}")
+  return first >= 0 && last > first ? attempt(cleaned.slice(first, last + 1)) : null
 }
 
 export function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
