@@ -1,6 +1,6 @@
 import { ComponentType, Suspense, lazy as reactLazy, useEffect, useRef, useState } from "react"
 import { Toaster } from "sonner"
-import { ChevronDown, Keyboard, Sparkles } from "lucide-react"
+import { ArrowRight, ChevronDown, Keyboard, Menu as MenuIcon, Sparkles, X } from "lucide-react"
 import { useResume } from "./hooks/useResume"
 import { useCloudSync } from "./hooks/useCloudSync"
 import { useRoute, navigate } from "./router"
@@ -65,6 +65,34 @@ const APP_NAV_END = [
 ]
 
 const ALL_APP_ROUTES = [...APP_NAV, ...AI_TOOLS, ...APP_NAV_END]
+
+// Public marketing nav, centered like an editorial site.
+const PUBLIC_NAV = [
+  { path: "/builder", label: "Resume builder" },
+  { path: "/analyze", label: "ATS checker" },
+  { path: "/templates", label: "Templates" },
+  { path: "/pricing", label: "Pricing" },
+]
+
+const ANNOUNCE_KEY = "resumate.announce.languages"
+
+function AnnouncementBar() {
+  const [open, setOpen] = useState(() => {
+    try { return localStorage.getItem(ANNOUNCE_KEY) !== "dismissed" } catch { return true }
+  })
+  if (!open) return null
+  return (
+    <div className="announce-bar no-print" role="region" aria-label="Announcement">
+      <span>New: build your resume in Spanish or French</span>
+      <span className="announce-chip" aria-hidden="true">ES · FR</span>
+      <a href="/builder" onClick={(event) => { event.preventDefault(); navigate("/builder") }}>Try it <ArrowRight size={14} aria-hidden="true" /></a>
+      <button type="button" className="announce-close" aria-label="Dismiss announcement" onClick={() => {
+        setOpen(false)
+        try { localStorage.setItem(ANNOUNCE_KEY, "dismissed") } catch { /* ignore */ }
+      }}><X size={16} aria-hidden="true" /></button>
+    </div>
+  )
+}
 
 const PUBLIC_ROUTES = new Set(["/", "/pricing", "/privacy", "/tos", "/refund", "/login", "/signup", "/verify-email", "/account"])
 
@@ -139,6 +167,7 @@ export default function App() {
   const sharedChecked = useRef(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showMobileNav, setShowMobileNav] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
   const [theme] = useTheme()
   const account = useAccount()
   useCloudSync(account.user)
@@ -167,6 +196,18 @@ export default function App() {
       ? "noindex, nofollow"
       : "index, follow"
   }, [route])
+
+  // Public nav gains a hairline once the page scrolls. A sentinel observer
+  // avoids a scroll listener.
+  useEffect(() => {
+    if (isApp || !("IntersectionObserver" in window)) return
+    const sentinel = document.createElement("div")
+    sentinel.style.cssText = "position:absolute;top:0;left:0;width:1px;height:8px;pointer-events:none"
+    document.body.prepend(sentinel)
+    const observer = new IntersectionObserver(([entry]) => setScrolled(!entry.isIntersecting))
+    observer.observe(sentinel)
+    return () => { observer.disconnect(); sentinel.remove() }
+  }, [isApp])
 
   // If the page was opened from a shared link, offer to load it once.
   useEffect(() => {
@@ -241,12 +282,20 @@ export default function App() {
   return (
     <div className="app">
       <a className="skip-link" href="#main">Skip to content</a>
-      <nav className={`nav no-print ${isApp ? "app-nav" : "public-nav"}`} aria-label="Primary navigation">
+      {route === "/" && <AnnouncementBar />}
+      <nav className={`nav no-print ${isApp ? "app-nav" : `public-nav${scrolled ? " scrolled" : ""}`}`} aria-label="Primary navigation">
         <button className="brand" onClick={() => navigate("/")} aria-label="ResuMate home">
           <span className="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="22" height="22"><path d="M7 3.75h7l3 3v13.5H7z" fill="none" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" /><path d="M14 3.75v3h3M9.5 11h5M9.5 14.5h5" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" /></svg>
           </span><span className="brand-name">ResuMate</span>
         </button>
+        {!isApp && (
+          <div className="nav-links public-links">
+            {PUBLIC_NAV.map((item) => (
+              <a key={item.path} href={item.path} className={route === item.path ? "active" : ""} aria-current={route === item.path ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate(item.path) }}>{item.label}</a>
+            ))}
+          </div>
+        )}
         {isApp && (
           <div className="nav-links">
             {APP_NAV.map((item) => (
@@ -290,22 +339,24 @@ export default function App() {
           ) : isApp && savedAt > 0 ? (
             <span className="saved-pill" role="status" aria-live="polite">Saved</span>
           ) : null}
-          <InstallButton />
+          {isApp && <InstallButton />}
           {isApp && <button className="icon-btn" onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (press ?)" aria-label="Keyboard shortcuts"><Keyboard size={17} aria-hidden="true" /></button>}
-          {!isApp && <button className={`pricing-nav${route === "/pricing" ? " active" : ""}`} aria-current={route === "/pricing" ? "page" : undefined} onClick={() => navigate("/pricing")}>Pricing</button>}
           {!account.loading && account.user && (
-            <button className="account-nav" onClick={() => navigate("/account")}>{account.user.name.split(" ")[0]}</button>
+            <button className={`account-nav${isApp ? "" : " quiet"}`} onClick={() => navigate("/account")}>{account.user.name.split(" ")[0]}</button>
           )}
           {!account.loading && !account.user && !isApp && (
-            <>
-              <button className="sign-in-nav" onClick={() => navigate("/login")}>Sign in</button>
-              <button className="account-nav" onClick={() => navigate("/signup")}>Sign up</button>
-            </>
+            <button className="sign-in-nav" onClick={() => navigate("/login")}>Log in</button>
           )}
           {!account.loading && !account.user && isApp && (
             <button className="account-nav" onClick={() => navigate("/signup")}>Sign up</button>
           )}
+          {!isApp && (
+            <button className="account-nav public-cta" onClick={() => navigate("/builder")}>{account.user ? "Open editor" : "Build my resume"} <ArrowRight size={16} aria-hidden="true" /></button>
+          )}
           <ThemeToggle />
+          {!isApp && (
+            <button className="public-menu-trigger" type="button" aria-haspopup="dialog" aria-label="Open menu" onClick={() => setShowMobileNav(true)}><MenuIcon size={20} aria-hidden="true" /></button>
+          )}
         </div>
       </nav>
 
@@ -323,6 +374,10 @@ export default function App() {
               navigate("/builder")
             }}
             onCreateAccount={() => navigate("/signup")}
+            onUseTemplate={(template) => {
+              setResume((current) => ({ ...current, settings: { ...current.settings, template } }))
+              navigate("/builder")
+            }}
           />
         )}
         {route === "/builder" && (
@@ -359,9 +414,19 @@ export default function App() {
         </Suspense>
       </main>
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
-      <BottomSheet open={showMobileNav} title="Go to" onClose={() => setShowMobileNav(false)}>
-        <nav className="mobile-nav-menu" aria-label="App sections">
-          {[...APP_NAV, ...AI_TOOLS, ...APP_NAV_END].map((item, index) => (
+      <BottomSheet open={showMobileNav} title={isApp ? "Go to" : "Menu"} onClose={() => setShowMobileNav(false)}>
+        <nav className="mobile-nav-menu" aria-label={isApp ? "App sections" : "Site sections"}>
+          {!isApp && <>
+            {PUBLIC_NAV.map((item) => (
+              <button key={item.path} type="button" className={route === item.path ? "active" : ""} aria-current={route === item.path ? "page" : undefined} onClick={() => { setShowMobileNav(false); navigate(item.path) }}>
+                <span>{item.label}</span>{route === item.path && <span aria-hidden="true">✓</span>}
+              </button>
+            ))}
+            {!account.user && <button type="button" className="group-start" onClick={() => { setShowMobileNav(false); navigate("/login") }}><span>Log in</span></button>}
+            {!account.user && <button type="button" onClick={() => { setShowMobileNav(false); navigate("/signup") }}><span>Create a free account</span></button>}
+            {account.user && <button type="button" className="group-start" onClick={() => { setShowMobileNav(false); navigate("/account") }}><span>Account</span></button>}
+          </>}
+          {isApp && [...APP_NAV, ...AI_TOOLS, ...APP_NAV_END].map((item, index) => (
             <button
               key={item.path}
               type="button"
@@ -376,7 +441,7 @@ export default function App() {
               {route === item.path && <span aria-hidden="true">✓</span>}
             </button>
           ))}
-          {account.user?.isAdmin && <button type="button" className={route === "/admin" ? "active" : ""} aria-current={route === "/admin" ? "page" : undefined} onClick={() => { setShowMobileNav(false); navigate("/admin") }}><span>Admin</span>{route === "/admin" && <span aria-hidden="true">✓</span>}</button>}
+          {isApp && account.user?.isAdmin && <button type="button" className={route === "/admin" ? "active" : ""} aria-current={route === "/admin" ? "page" : undefined} onClick={() => { setShowMobileNav(false); navigate("/admin") }}><span>Admin</span>{route === "/admin" && <span aria-hidden="true">✓</span>}</button>}
         </nav>
       </BottomSheet>
       <DialogHost />

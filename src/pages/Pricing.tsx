@@ -3,6 +3,7 @@ import { PREMIUM_TEMPLATE_COUNT, TEMPLATES } from "../templates/registry"
 import { BILLING_STATE, beginUpgrade, type PlanId } from "../lib/billing"
 import { navigate } from "../router"
 import { trackEvent, upgradeSourceForCheckout } from "../lib/analytics"
+import { SiteFooter } from "../components/SiteFooter"
 
 const PLANS = [
   {
@@ -267,13 +268,7 @@ export function Pricing() {
         <p>No card is required for the free plan.</p>
       </section>
 
-      <footer className="landing-footer">
-        <nav className="footer-links" aria-label="Legal">
-          <a className="footer-link" href="/privacy">Privacy</a>
-          <a className="footer-link" href="/tos">Terms</a>
-          <a className="footer-link" href="/refund">Refunds</a>
-        </nav>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }
