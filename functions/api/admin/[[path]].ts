@@ -33,6 +33,25 @@ async function overview(env: AdminEnv) {
      FROM conversion_events WHERE created_at >= ?
      GROUP BY event_name ORDER BY count DESC`,
   ).bind(now - 30 * 24 * 60 * 60 * 1_000).all()
+  // Upgrade prompts and premium-template previews, broken down by where the
+  // prompt was shown and which template was involved.
+  const since = now - 30 * 24 * 60 * 60 * 1_000
+  const upgradeSources = await env.DB.prepare(
+    `SELECT json_extract(metadata_json, '$.source') AS source, event_name AS eventName, COUNT(*) AS count
+     FROM conversion_events
+     WHERE created_at >= ? AND metadata_json IS NOT NULL
+       AND event_name IN ('upgrade_prompt_viewed', 'upgrade_prompt_clicked', 'export_blocked', 'checkout_started', 'purchase_activated')
+       AND json_extract(metadata_json, '$.source') IS NOT NULL
+     GROUP BY source, event_name`,
+  ).bind(since).all()
+  const templates = await env.DB.prepare(
+    `SELECT json_extract(metadata_json, '$.template') AS template, event_name AS eventName, COUNT(*) AS count
+     FROM conversion_events
+     WHERE created_at >= ? AND metadata_json IS NOT NULL
+       AND event_name IN ('template_previewed', 'export_completed', 'upgrade_prompt_clicked')
+       AND json_extract(metadata_json, '$.template') IS NOT NULL
+     GROUP BY template, event_name`,
+  ).bind(since).all()
   const webhookFailures = await env.DB.prepare(
     `SELECT provider, event_id AS eventId, event_type AS eventType,
             error_code AS errorCode, created_at AS createdAt
@@ -53,6 +72,8 @@ async function overview(env: AdminEnv) {
     },
     users: users.results,
     funnel: funnel.results,
+    upgradeSources: upgradeSources.results,
+    templates: templates.results,
     webhookFailures: webhookFailures.results,
     audits: audits.results,
   })

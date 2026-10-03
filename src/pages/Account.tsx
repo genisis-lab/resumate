@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { confirmDialog } from "../components/ui/dialogs"
 import { AccountUser, deleteAccount, logoutAccount } from "../lib/auth"
 import { navigate } from "../router"
+import { openUpgrade } from "../lib/analytics"
 
 export function Account({ user, onChanged }: { user: AccountUser | null; onChanged: () => Promise<void> }) {
   const [error, setError] = useState("")
@@ -76,7 +77,7 @@ export function Account({ user, onChanged }: { user: AccountUser | null; onChang
               <a className="btn-primary" href={billing.manageUrl} target="_blank" rel="noreferrer">Manage billing on Whop</a>
             </div>
           )}
-          {!billing && <button className="btn-primary" onClick={() => navigate("/pricing")}>See upgrade options</button>}
+          {!billing && <button className="btn-primary" onClick={() => openUpgrade("account")}>See upgrade options</button>}
         </section>
         <section className="account-card account-data"><span className="account-label">Resume storage</span><h2>Saved on this device</h2><p>Your existing resumes have not been uploaded. Export a backup from the editor before clearing browser data.</p><button className="btn-ghost" onClick={() => navigate("/builder")}>Open editor</button></section>
       </div>

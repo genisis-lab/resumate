@@ -6,6 +6,8 @@ type AdminOverview = {
   summary: { users: number; verified: number; sprint: number; pro: number; aiActions: number }
   users: Array<{ id: string; email: string; name: string; plan: string; emailVerifiedAt: number | null; createdAt: number; aiActions: number }>
   funnel: Array<{ eventName: string; count: number }>
+  upgradeSources?: Array<{ source: string; eventName: string; count: number }>
+  templates?: Array<{ template: string; eventName: string; count: number }>
   webhookFailures: Array<{ provider: string; eventId: string; eventType: string; errorCode: string; createdAt: number }>
   audits: Array<{ action: string; targetUserId: string; reason: string; createdAt: number }>
 }
@@ -88,10 +90,78 @@ const EVENT_LABELS: Record<string, string> = {
   signup_started: "Signup starts",
   signup_completed: "Accounts created",
   email_verified: "Emails verified",
+  pricing_view: "Pricing views",
   checkout_started: "Checkout starts",
   checkout_created: "Checkout links",
   purchase_activated: "Paid activations",
-  ai_action_completed: "AI activations",
+  ai_action_completed: "AI actions",
+  export_completed: "Exports",
+  export_blocked: "Exports blocked",
+  template_previewed: "Premium previews",
+  upgrade_prompt_viewed: "Upgrade prompts shown",
+  upgrade_prompt_clicked: "Upgrade prompts clicked",
+  sync_enabled: "Sync turned on",
+}
+
+// Ordered acquisition-to-purchase path. Each step shows its share of the step before.
+const FUNNEL_STEPS = ["landing_view", "signup_started", "signup_completed", "email_verified", "pricing_view", "checkout_started", "checkout_created", "purchase_activated"]
+const ACTIVITY_EVENTS = ["ai_action_completed", "export_completed", "export_blocked", "template_previewed", "upgrade_prompt_viewed", "upgrade_prompt_clicked", "sync_enabled"]
+
+const SOURCE_LABELS: Record<string, string> = {
+  export_premium_template: "Premium template export",
+  export_limit: "Free export limit",
+  ats_limit: "Free ATS-check limit",
+  ai_locked: "AI tools (Free)",
+  ai_limit: "AI allowance used up",
+  template_gallery: "Template gallery",
+  builder_template: "Editor template picker",
+  builder_banner: "Editor upgrade notice",
+  account: "Account page",
+  landing: "Landing page",
+  nav: "Navigation",
+  sync: "Cloud sync",
+  languages: "Resume languages",
+}
+
+function pct(part: number, whole: number): string {
+  if (!whole) return "—"
+  const value = (part / whole) * 100
+  return `${value >= 10 || value === 0 ? Math.round(value) : value.toFixed(1)}%`
+}
+
+function pivot<K extends string>(rows: Array<Record<K, string> & { eventName: string; count: number }> | undefined, key: K) {
+  const table = new Map<string, Record<string, number>>()
+  for (const row of rows || []) {
+    const id = row[key]
+    if (!id) continue
+    const entry = table.get(id) || {}
+    entry[row.eventName] = (entry[row.eventName] || 0) + Number(row.count)
+    table.set(id, entry)
+  }
+  return [...table.entries()]
+}
+
+function FunnelChart({ counts }: { counts: Record<string, number> }) {
+  const max = Math.max(1, ...FUNNEL_STEPS.map((step) => counts[step] || 0))
+  return (
+    <ol className="funnel-chart" aria-label="Acquisition to purchase funnel, last 30 days">
+      {FUNNEL_STEPS.map((step, index) => {
+        const count = counts[step] || 0
+        const previous = index ? counts[FUNNEL_STEPS[index - 1]] || 0 : 0
+        const share = index ? pct(count, previous) : ""
+        const tip = index ? `${count.toLocaleString()} ${EVENT_LABELS[step].toLowerCase()} · ${share} of ${EVENT_LABELS[FUNNEL_STEPS[index - 1]].toLowerCase()}` : `${count.toLocaleString()} ${EVENT_LABELS[step].toLowerCase()}`
+        return (
+          <li key={step} className="funnel-row" tabIndex={0} aria-label={tip}>
+            <span className="funnel-label">{EVENT_LABELS[step]}</span>
+            <span className="funnel-track"><span className="funnel-bar" style={{ width: `${Math.max(count ? 1.5 : 0, (count / max) * 100)}%` }} /></span>
+            <span className="funnel-value">{count.toLocaleString()}</span>
+            <span className="funnel-step">{share}</span>
+            <span className="funnel-tip" role="tooltip">{tip}</span>
+          </li>
+        )
+      })}
+    </ol>
+  )
 }
 
 export function Admin({ user }: { user: AccountUser | null }) {
@@ -140,6 +210,10 @@ export function Admin({ user }: { user: AccountUser | null }) {
     }
   }
 
+  const counts = Object.fromEntries((data?.funnel || []).map((event) => [event.eventName, Number(event.count)]))
+  const sources = pivot(data?.upgradeSources, "source").sort((a, b) => (b[1].upgrade_prompt_viewed || 0) - (a[1].upgrade_prompt_viewed || 0))
+  const templateRows = pivot(data?.templates, "template").sort((a, b) => (b[1].template_previewed || 0) - (a[1].template_previewed || 0))
+
   if (!user?.isAdmin) return <div className="status-page"><h1>Admin console</h1><p>This page is restricted to a verified owner account.</p></div>
   return (
     <div className="admin-page">
@@ -155,7 +229,26 @@ export function Admin({ user }: { user: AccountUser | null }) {
         </section>
         <section className="admin-section">
           <div className="admin-section-head"><div><span className="account-label">Last 30 days</span><h2>Conversion path</h2></div><button className="btn-ghost small" onClick={() => void load()}>Refresh</button></div>
-          <div className="admin-funnel">{data.funnel.length ? data.funnel.map((event) => <div key={event.eventName}><span>{EVENT_LABELS[event.eventName] || event.eventName}</span><strong>{event.count}</strong></div>) : <p className="muted">No conversion events recorded yet.</p>}</div>
+          {data.funnel.length ? <>
+            <FunnelChart counts={counts} />
+            <div className="admin-funnel">{ACTIVITY_EVENTS.map((name) => <div key={name}><span>{EVENT_LABELS[name]}</span><strong>{(counts[name] || 0).toLocaleString()}</strong></div>)}</div>
+          </> : <p className="muted">No conversion events recorded yet.</p>}
+        </section>
+        <section className="admin-section">
+          <div className="admin-section-head"><div><span className="account-label">Last 30 days · by placement</span><h2>Upgrade prompts</h2></div></div>
+          {sources.length ? (
+            <div className="admin-table-wrap"><table className="admin-table">
+              <thead><tr><th scope="col">Placement</th><th scope="col">Shown</th><th scope="col">Clicked</th><th scope="col">Click rate</th><th scope="col">Checkouts</th><th scope="col">Purchases</th></tr></thead>
+              <tbody>{sources.map(([source, row]) => <tr key={source}><th scope="row">{SOURCE_LABELS[source] || source}</th><td>{row.upgrade_prompt_viewed || 0}</td><td>{row.upgrade_prompt_clicked || 0}</td><td>{pct(row.upgrade_prompt_clicked || 0, row.upgrade_prompt_viewed || 0)}</td><td>{row.checkout_started || 0}</td><td>{row.purchase_activated || 0}</td></tr>)}</tbody>
+            </table></div>
+          ) : <p className="muted">No upgrade prompts recorded yet. They appear when Free users hit a limit or a Premium feature.</p>}
+          {templateRows.length > 0 && <>
+            <h3 className="admin-subhead">Templates</h3>
+            <div className="admin-table-wrap"><table className="admin-table">
+              <thead><tr><th scope="col">Template</th><th scope="col">Premium previews on Free</th><th scope="col">Upgrade clicks</th><th scope="col">Exports</th></tr></thead>
+              <tbody>{templateRows.map(([template, row]) => <tr key={template}><th scope="row">{template}</th><td>{row.template_previewed || 0}</td><td>{row.upgrade_prompt_clicked || 0}</td><td>{row.export_completed || 0}</td></tr>)}</tbody>
+            </table></div>
+          </>}
         </section>
         <AiSmokeTest />
         <section className="admin-section">

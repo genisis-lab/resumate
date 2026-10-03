@@ -26,6 +26,7 @@ import { canUseTemplate, usageSnapshot, FREE_PLAN_LIMITS } from "../lib/usage"
 import { TEMPLATES, templateMeta } from "../templates/registry"
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Popover, PopoverContent, PopoverTrigger } from "../components/ui/menu"
 import { confirmDialog, promptDialog } from "../components/ui/dialogs"
+import { openUpgrade, trackEvent, upgradePromptViewed } from "../lib/analytics"
 
 const DENSITIES: { id: Density; label: string }[] = [
   { id: "compact", label: "Compact" },
@@ -176,9 +177,10 @@ export function Builder({
   function chooseTemplate(id: TemplateId) {
     setSettings({ template: id })
     if (!canUseTemplate(plan, id)) {
+      trackEvent("template_previewed", { template: id, plan })
       toast.info(`${templateMeta(id).label} is a Premium template`, {
         description: "Preview it free on your resume. Upgrade to download it as a PDF.",
-        action: { label: "See plans", onClick: () => navigate("/pricing") },
+        action: { label: "See plans", onClick: () => openUpgrade("builder_template", { template: id, plan }) },
       })
     }
   }
@@ -244,7 +246,8 @@ export function Builder({
   }
 
   function upgradeToast(message: string) {
-    toast.info(message, { action: { label: "See plans", onClick: () => navigate("/pricing") } })
+    upgradePromptViewed("builder_banner", { plan })
+    toast.info(message, { action: { label: "See plans", onClick: () => openUpgrade("builder_banner", { plan }) } })
   }
 
   function onDuplicate() {
@@ -546,7 +549,7 @@ export function Builder({
             <div className="premium-banner no-print" role="status">
               <Lock size={16} aria-hidden="true" />
               <span><strong>{template.label}</strong> is a Premium template. Preview it free — upgrade to download it.</span>
-              <button type="button" className="btn-primary small" onClick={() => navigate("/pricing")}>See plans</button>
+              <button type="button" className="btn-primary small" onClick={() => openUpgrade("builder_template", { template: resume.settings.template, plan })}>See plans</button>
             </div>
           )}
           <PaperFrame size={paperSizeOf(resume)} showPageBreaks onMetrics={setMetrics} className="preview-frame">

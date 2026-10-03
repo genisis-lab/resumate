@@ -809,13 +809,31 @@ body.printing .nav, body.printing .builder-bar, body.printing .editor-pane, body
 .admin-funnel > div { display: grid; gap: 12px; padding: 14px; background: var(--surface-2); border-radius: 10px; }
 .admin-funnel span { color: var(--text-soft); font-size: 12px; overflow-wrap: anywhere; }
 .admin-funnel strong { font-size: 22px; }
+.funnel-chart { list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 4px; }
+.funnel-row { position: relative; display: grid; grid-template-columns: 170px minmax(0, 1fr) 72px 56px; align-items: center; gap: 12px; min-height: 32px; padding: 0 6px; border-radius: 6px; outline: none; }
+.funnel-row:hover, .funnel-row:focus-visible { background: var(--surface-2); }
+.funnel-row:focus-visible { box-shadow: 0 0 0 2px var(--brand); }
+.funnel-label { font-size: 13px; color: var(--text-soft); }
+.funnel-track { display: block; height: 20px; }
+.funnel-bar { display: block; height: 100%; background: var(--brand); border-radius: 0 4px 4px 0; }
+.funnel-value { font-size: 13px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.funnel-step { font-size: 12px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.funnel-tip { position: absolute; left: 182px; bottom: calc(100% + 4px); z-index: 2; padding: 6px 10px; border-radius: 6px; background: var(--text); color: var(--surface); font-size: 12px; white-space: nowrap; pointer-events: none; opacity: 0; transform: translateY(2px); transition: opacity .12s, transform .12s; }
+.funnel-row:hover .funnel-tip, .funnel-row:focus-visible .funnel-tip { opacity: 1; transform: none; }
+.admin-subhead { margin: 22px 0 10px; font-size: 15px; }
+.admin-table-wrap { overflow-x: auto; }
+.admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.admin-table th, .admin-table td { padding: 9px 10px; text-align: right; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.admin-table th:first-child { text-align: left; font-weight: 500; }
+.admin-table thead th { border-top: 0; color: var(--text-soft); font-weight: 500; font-size: 12px; }
+@media (max-width: 640px) { .funnel-row { grid-template-columns: 110px minmax(0, 1fr) 56px 44px; gap: 8px; } .funnel-tip { left: 8px; } }
 .admin-smoke-controls { display: flex; gap: 8px; align-items: center; }
 .admin-smoke-controls select { min-width: 200px; }
 .admin-smoke-config { margin: 14px 0 10px; color: var(--text-soft); font-size: 13px; }
 .admin-smoke-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
 .admin-smoke-card { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--border); border-left-width: 3px; border-radius: 10px; background: var(--surface-2); min-width: 0; }
-.admin-smoke-card.ok { border-left-color: var(--success, #16a34a); }
-.admin-smoke-card.fail { border-left-color: var(--danger, #dc2626); }
+.admin-smoke-card.ok { border-left-color: var(--good); }
+.admin-smoke-card.fail { border-left-color: var(--bad); }
 .admin-smoke-card header { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
 .admin-smoke-card header span { color: var(--text-soft); }
 .admin-smoke-card dl { display: flex; gap: 18px; margin: 0; font-size: 12px; }

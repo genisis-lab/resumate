@@ -9,6 +9,7 @@ import { navigate } from "../router"
 import type { PlanId } from "../lib/billing"
 import { canUseTemplate } from "../lib/usage"
 import { TEMPLATES, TemplateTag, templateMeta } from "../templates/registry"
+import { openUpgrade, trackEvent } from "../lib/analytics"
 
 type Filter = "all" | "free" | "premium" | TemplateTag
 
@@ -49,6 +50,7 @@ export function Templates({
   }
 
   function choose(id: TemplateId) {
+    if (!canUseTemplate(plan, id)) trackEvent("template_previewed", { template: id, plan })
     setResume((r) => ({ ...r, settings: { ...r.settings, template: id } }))
     navigate("/builder")
   }
@@ -101,7 +103,7 @@ export function Templates({
                 <div className="template-tags">{t.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
                 <div className="template-actions">
                   <button className="btn-primary small" onClick={() => choose(t.id)}>{current ? "Open in editor" : available ? "Use template" : "Try it free"}</button>
-                  {!available && <button className="btn-ghost small" onClick={() => navigate("/pricing")}>Unlock</button>}
+                  {!available && <button className="btn-ghost small" onClick={() => openUpgrade("template_gallery", { template: t.id, plan })}>Unlock</button>}
                 </div>
               </div>
             </article>
@@ -130,7 +132,7 @@ export function Templates({
                   </PaperFrame>
                 </div>
                 <div className="dialog-actions">
-                  {!canUseTemplate(plan, preview.id) && <button className="btn-ghost" onClick={() => navigate("/pricing")}>See plans</button>}
+                  {!canUseTemplate(plan, preview.id) && <button className="btn-ghost" onClick={() => openUpgrade("template_gallery", { template: preview.id, plan })}>See plans</button>}
                   <button className="btn-primary" onClick={() => choose(preview.id)}>{canUseTemplate(plan, preview.id) ? "Use this template" : "Try it on my resume"}</button>
                 </div>
               </>

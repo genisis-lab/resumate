@@ -12,6 +12,7 @@ import { importResumeFromFile } from "../lib/importResume"
 import type { PlanId } from "../lib/billing"
 import { consumeUsage, usageSnapshot } from "../lib/usage"
 import { AiActionBudget } from "../components/AiActionBudget"
+import { openUpgrade, upgradePromptViewed } from "../lib/analytics"
 
 function ScoreGauge({ score }: { score: number }) {
   const tone = score >= 80 ? "good" : score >= 60 ? "ok" : "bad"
@@ -52,6 +53,7 @@ export function Analyze({
   const [importing, setImporting] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [atsLimited, setAtsLimited] = useState(false)
   const [tailoring, setTailoring] = useState(false)
   const [tailored, setTailored] = useState<TailorResult | null>(null)
   const [tailoredDraft, setTailoredDraft] = useState("")
@@ -139,11 +141,14 @@ export function Analyze({
       const quota = consumeUsage(plan, "localAtsChecks")
       refreshUsage((value) => value + 1)
       if (!quota.allowed) {
+        upgradePromptViewed("ats_limit", { plan })
+        setAtsLimited(true)
         setError("The Free plan includes 5 local ATS checks each month. Upgrade for expanded checks.")
         return
       }
     }
     setError("")
+    setAtsLimited(false)
     setLoading(true)
     try {
       const res = useAi
@@ -329,7 +334,7 @@ export function Analyze({
               </div>
             </div>
           )}
-          {error && <p className="error">{error}</p>}
+          {error && <p className="error">{error}{atsLimited && <> <button type="button" className="text-button" onClick={() => openUpgrade("ats_limit", { plan })}>See plans</button></>}</p>}
           <p className="hint-text">The local job match and uploaded file stay in this browser.{plan === "free" ? ` ${localAtsUsage.remaining} of 5 Free local checks remain this month.` : ""} Optional AI actions send only the selected resume and job-description text through ResuMate's validated server boundary and require a configured provider; they do not silently replace the local result.</p>
         </div>
 

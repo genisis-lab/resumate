@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { PREMIUM_TEMPLATE_COUNT, TEMPLATES } from "../templates/registry"
 import { BILLING_STATE, beginUpgrade, type PlanId } from "../lib/billing"
 import { navigate } from "../router"
+import { trackEvent, upgradeSourceForCheckout } from "../lib/analytics"
 
 const PLANS = [
   {
@@ -106,6 +107,10 @@ export function Pricing() {
   const [checkoutPlan, setCheckoutPlan] = useState<PlanId | null>(null)
   const [checkoutError, setCheckoutError] = useState("")
   useEffect(() => {
+    const source = upgradeSourceForCheckout()
+    trackEvent("pricing_view", source ? { source } : {})
+  }, [])
+  useEffect(() => {
     const script = document.createElement("script")
     script.id = "pricing-faq-schema"
     script.type = "application/ld+json"
@@ -126,7 +131,7 @@ export function Pricing() {
     setCheckoutError("")
     setCheckoutPlan(plan)
     try {
-      await beginUpgrade(plan)
+      await beginUpgrade(plan, upgradeSourceForCheckout())
     } catch (error) {
       setCheckoutError(error instanceof Error ? error.message : "Checkout is temporarily unavailable.")
       setCheckoutPlan(null)
