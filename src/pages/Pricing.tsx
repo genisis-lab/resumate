@@ -11,7 +11,7 @@ const PLANS = [
     price: "$0",
     cadence: "forever",
     description: "Build one strong resume and see where it needs work.",
-    features: ["1 active resume", "3 ATS-safe templates", "3 PDF or Word exports each month", "5 private local ATS checks each month", "Hosted AI analysis and writing not included"],
+    features: ["1 active resume", "3 ATS-safe templates", "3 PDF or Word exports each month", "5 private local ATS checks each month", "Resume headings in English, Spanish, or French", "Hosted AI analysis and writing not included"],
     action: "Create free account",
     onClick: () => navigate("/signup"),
   },
@@ -27,6 +27,7 @@ const PLANS = [
       "40 Cloudflare-hosted AI actions during the 30-day pass",
       "AI resume review, job match, tailoring, rewriting, cover letters, and interview prep",
       "LinkedIn optimizer, job decoder, and follow-up and thank-you emails",
+      "AI translation of your resume into Spanish, French, or English",
       `All ${TEMPLATES.length} templates, including ${PREMIUM_TEMPLATE_COUNT} Premium designs, and unlimited PDF/Word exports`,
     ],
     action: "Get launch notice",
@@ -43,7 +44,7 @@ const PLANS = [
       "Unlimited resumes, jobs, and applications",
       "Hosted parser testing when available",
       "150 Cloudflare-hosted AI actions each month",
-      "Every AI tool: resume review, LinkedIn optimizer, job decoder, cover letters, and interview prep",
+      "Every AI tool: resume review, LinkedIn optimizer, job decoder, translation, cover letters, and interview prep",
       `All ${TEMPLATES.length} templates and unlimited PDF/Word exports`,
       "Optional end-to-end encrypted sync across your devices",
       "Priority support and 25 active share links",
@@ -59,6 +60,7 @@ const COMPARISON = [
   { feature: "PDF or Word exports", free: "3 / month", sprint: "Unlimited", pro: "Unlimited" },
   { feature: "Local ATS checks", free: "5 / month", sprint: "Expanded", pro: "Expanded" },
   { feature: "Hosted AI job match and writing", free: "Not included", sprint: "40 actions / 30 days", pro: "150 actions / month" },
+  { feature: "Resume languages (EN, ES, FR)", free: "Headings", sprint: "Headings + AI translation", pro: "Headings + AI translation" },
   { feature: "Encrypted sync across devices", free: "—", sprint: "—", pro: "Optional" },
   { feature: "Version history", free: "Current", sprint: "30 days planned", pro: "1 year planned" },
 ]
@@ -95,6 +97,10 @@ const FAQS = [
   {
     question: "What is the refund policy?",
     answer: "When payments launch, first purchases will have a 14-day refund window and subscription renewals a 7-day window, subject to stronger rights under local law.",
+  },
+  {
+    question: "Can I make my resume in Spanish or French?",
+    answer: "Yes. Every plan can switch a resume's section headings and labels to Spanish or French. Career Sprint and Pro can also translate the content with AI into a new copy, using one AI action; names, employers, schools, contact details, and numbers are kept exactly as written, and your original stays unchanged.",
   },
   {
     question: "How does Pro sync keep my resumes private?",

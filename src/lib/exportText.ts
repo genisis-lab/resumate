@@ -2,7 +2,8 @@
 // Word exporters with ATS-friendly / portable formats developers often want
 // (paste into a text box, commit to a repo, or import elsewhere).
 
-import { Resume, SectionKey, SECTION_LABELS } from "../types/resume"
+import { Resume, SectionKey } from "../types/resume"
+import { dateRangeText, resumeStrings } from "./resumeLanguage"
 import { resumeToPlainText } from "./resumeText"
 import { triggerDownload, sanitize } from "./storage"
 
@@ -10,14 +11,12 @@ function fileBase(r: Resume): string {
   return sanitize(r.contact.fullName || r.name || "resume")
 }
 
-function dateRange(start: string, end: string, current?: boolean): string {
-  const e = current ? "Present" : end
-  if (start && e) return `${start} \u2013 ${e}`
-  return start || e || ""
-}
+
 
 function sectionMarkdown(key: SectionKey, r: Resume): string {
   const lines: string[] = []
+  const strings = resumeStrings(r)
+  const dateRange = (start: string, end: string, current?: boolean) => dateRangeText(start, end, current, strings)
   switch (key) {
     case "summary":
       return r.summary || ""
@@ -43,7 +42,7 @@ function sectionMarkdown(key: SectionKey, r: Resume): string {
       break
     case "skills":
       if (!r.skills.length) return ""
-      for (const g of r.skills) lines.push(`- **${g.category || "Skills"}:** ${g.items.join(", ")}`)
+      for (const g of r.skills) lines.push(`- **${g.category || strings.sections.skills}:** ${g.items.join(", ")}`)
       break
     case "projects":
       if (!r.projects.length) return ""
@@ -73,7 +72,7 @@ export function resumeToMarkdown(r: Resume): string {
   const order = r.settings.sectionOrder.filter((s) => !r.settings.hidden.includes(s))
   for (const key of order) {
     const body = sectionMarkdown(key, r)
-    if (body) out.push(`## ${SECTION_LABELS[key]}`, body, "")
+    if (body) out.push(`## ${resumeStrings(r).sections[key]}`, body, "")
   }
   for (const sec of r.customSections || []) {
     if (sec.hidden) continue

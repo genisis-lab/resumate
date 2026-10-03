@@ -1,4 +1,5 @@
-import { Resume, SectionKey, SECTION_LABELS } from "../types/resume"
+import { Resume, SectionKey } from "../types/resume"
+import { dateRangeText, languageOf, resumeStrings, type ResumeStrings } from "./resumeLanguage"
 import { createZip, strToBytes, ZipEntry } from "./zip"
 import { triggerDownload, sanitize } from "./storage"
 import { templateMeta } from "../templates/registry"
@@ -19,6 +20,10 @@ interface DocxStyle {
   /** Twentieths of a point (twips) for the right-aligned date tab stop. */
   tabStop: number
   page: { w: number; h: number }
+  /** Fixed headings and labels in the resume's language. */
+  strings: ResumeStrings
+  /** BCP 47 tag Word uses for spelling and hyphenation. */
+  lang: string
 }
 
 function esc(s: string): string {
@@ -71,11 +76,7 @@ function entryHeading(title: string, right: string, style: DocxStyle): string {
   return `<w:p><w:pPr><w:keepNext/><w:tabs><w:tab w:val="right" w:pos="${style.tabStop}"/></w:tabs><w:spacing w:before="80" w:after="20"/></w:pPr>${run(title, { bold: true, font: style.heading })}${tail}</w:p>`
 }
 
-function dateRange(start: string, end: string, current?: boolean): string {
-  const finish = current ? "Present" : end
-  if (start && finish) return `${start} – ${finish}`
-  return start || finish || ""
-}
+
 
 function hyperlinkTarget(value: string): string | null {
   const trimmed = value.trim()
@@ -106,7 +107,7 @@ function body(r: Resume, style: DocxStyle, links: string[]): string {
   for (const key of order) renderSection(key, r, out, style)
   for (const sec of r.customSections || []) {
     if (sec.hidden || !sec.items.length) continue
-    out.push(sectionHeading(sec.title || "Additional", style))
+    out.push(sectionHeading(sec.title || style.strings.section, style))
     for (const item of sec.items) {
       if (item.title || item.date) out.push(entryHeading(item.title, item.date, style))
       if (item.subtitle) out.push(para(run(item.subtitle, { size: 20, italic: true, color: "555555" })))
@@ -126,7 +127,8 @@ function renderSection(key: SectionKey, r: Resume, out: string[], style: DocxSty
     (key === "projects" && r.projects.length) ||
     (key === "certifications" && r.certifications.length)
   if (!has) return
-  out.push(sectionHeading(SECTION_LABELS[key], style))
+  out.push(sectionHeading(style.strings.sections[key], style))
+  const dateRange = (start: string, end: string, current?: boolean) => dateRangeText(start, end, current, style.strings)
   switch (key) {
     case "summary":
       out.push(para(run(r.summary)))
@@ -198,7 +200,7 @@ ${hyperlinks}
 function stylesXml(style: DocxStyle): string {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-<w:docDefaults><w:rPrDefault><w:rPr>${fonts(style.body)}<w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="en-US"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="60" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>
+<w:docDefaults><w:rPrDefault><w:rPr>${fonts(style.body)}<w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="${style.lang}"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="60" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>
 <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>
 </w:styles>`
 }
@@ -221,7 +223,8 @@ function docxStyle(r: Resume, options: DocxOptions): DocxStyle {
   const accent = options.templateStyles && /^#[0-9a-f]{6}$/i.test(r.settings.accent) ? r.settings.accent.slice(1).toUpperCase() : "1F2937"
   // US Letter is 12240 x 15840 twips; A4 is 11906 x 16838. Margins are 0.75in (1080 twips).
   const page = r.settings.paperSize === "a4" ? { w: 11906, h: 16838 } : { w: 12240, h: 15840 }
-  return { body: meta.docx.body, heading: meta.docx.heading, accent, tabStop: page.w - 2160, page }
+  const lang = { en: "en-US", es: "es-ES", fr: "fr-FR" }[languageOf(r)]
+  return { body: meta.docx.body, heading: meta.docx.heading, accent, tabStop: page.w - 2160, page, strings: resumeStrings(r), lang }
 }
 
 export function buildDocxBlob(r: Resume, options: DocxOptions = {}): Blob {

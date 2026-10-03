@@ -1672,6 +1672,9 @@ button.page-badge.over:not(:disabled):hover { filter: brightness(.96); }
 .segmented button { flex: 1; min-height: 30px; padding: 4px 11px; border: 0; border-radius: 6px; background: transparent; color: var(--text-soft); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .segmented button[aria-checked="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(16, 24, 40, .12); }
 .design-fit { width: 100%; }
+.design-hint { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.design-translate { display: flex; flex-wrap: wrap; gap: 6px; }
+.design-translate .btn-ghost { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ---- Dialogs (Radix) ---- */
 .dialog-overlay { position: fixed; inset: 0; z-index: 140; background: rgba(2, 6, 23, .55); animation: fade-in .18s ease-out; }

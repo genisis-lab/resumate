@@ -3,6 +3,7 @@ import { Density, Resume } from "../types/resume"
 import { createEmptyResume } from "../data/sample"
 import { isTemplateId } from "../templates/registry"
 import { notifyStoreChanged, recordDeletion } from "./changes"
+import { isResumeLanguage } from "./resumeLanguage"
 
 const DENSITIES: readonly Density[] = ["compact", "cozy", "roomy"]
 
@@ -31,6 +32,7 @@ export function normalizeResume(r: any): Resume {
       fontScale: Number.isFinite(fontScale) ? Math.min(1.15, Math.max(0.8, fontScale)) : base.settings.fontScale,
       density: DENSITIES.includes(s.density) ? s.density : undefined,
       paperSize: s.paperSize === "a4" ? "a4" : undefined,
+      language: isResumeLanguage(s.language) && s.language !== "en" ? s.language : undefined,
       sectionOrder:
         Array.isArray(s.sectionOrder) && s.sectionOrder.length
           ? s.sectionOrder

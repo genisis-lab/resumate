@@ -1,14 +1,11 @@
 import React from "react"
-import { Resume, SectionKey, SECTION_LABELS, TemplateId } from "../types/resume"
+import { Resume, SectionKey, TemplateId } from "../types/resume"
+import { dateRangeText, languageOf, resumeStrings, type ResumeStrings } from "../lib/resumeLanguage"
 import "./fonts"
 import "./templates.css"
 import { paperSizeOf } from "../lib/fitPage"
 
-function dateRange(start: string, end: string, current?: boolean) {
-  const e = current ? "Present" : end
-  if (start && e) return `${start} – ${e}`
-  return start || e || ""
-}
+
 
 type HL = (text: string) => React.ReactNode
 
@@ -43,12 +40,12 @@ const SIDEBAR_ASIDE: SectionKey[] = ["skills", "education", "certifications"]
 const CHIP_SKILLS = new Set<TemplateId>(["bold", "sidebar"])
 const SHORT_LABELS = new Set<TemplateId>(["professional", "swiss", "developer", "bold", "sidebar"])
 
-function sectionLabel(key: SectionKey, template: TemplateId): string {
+function sectionLabel(key: SectionKey, template: TemplateId, strings: ResumeStrings): string {
   if (SHORT_LABELS.has(template)) {
-    if (key === "summary") return "Summary"
-    if (key === "experience" && template !== "professional") return "Experience"
+    if (key === "summary") return strings.shortSummary
+    if (key === "experience" && template !== "professional") return strings.shortExperience
   }
-  return SECTION_LABELS[key]
+  return strings.sections[key]
 }
 
 // Pick black or white text for content placed on the accent color.
@@ -97,21 +94,15 @@ function ContactLine({ r }: { r: Resume }) {
   )
 }
 
-const CONTACT_LABELS: { key: keyof Resume["contact"]; label: string }[] = [
-  { key: "email", label: "Email" },
-  { key: "phone", label: "Phone" },
-  { key: "location", label: "Location" },
-  { key: "website", label: "Website" },
-  { key: "linkedin", label: "LinkedIn" },
-  { key: "github", label: "GitHub" },
-]
+const CONTACT_KEYS = ["email", "phone", "location", "website", "linkedin", "github"] as const
 
 function ContactList({ r }: { r: Resume }) {
-  const rows = CONTACT_LABELS.filter(({ key }) => r.contact[key])
+  const strings = resumeStrings(r)
+  const rows = CONTACT_KEYS.filter((key) => r.contact[key]).map((key) => ({ key, label: strings.contactLabels[key] }))
   if (!rows.length) return null
   return (
     <section className="rp-section rp-section-contact">
-      <h2 className="rp-section-title">Contact</h2>
+      <h2 className="rp-section-title">{strings.contact}</h2>
       <div className="rp-section-body">
         <dl className="rp-contact-list">
           {rows.map(({ key, label }) => (
@@ -198,7 +189,9 @@ function SkillItems({ items, template, hl }: { items: string[]; template: Templa
 function renderSection(key: SectionKey, r: Resume, hl: HL) {
   const template = r.settings.template
   const professional = template === "professional"
-  const title = sectionLabel(key, template)
+  const strings = resumeStrings(r)
+  const title = sectionLabel(key, template, strings)
+  const dateRange = (start: string, end: string, current?: boolean) => dateRangeText(start, end, current, strings)
   switch (key) {
     case "summary":
       return r.summary ? (
@@ -306,7 +299,7 @@ function renderCustom(r: Resume, hl: HL) {
   return (r.customSections || [])
     .filter((sec) => !sec.hidden && sec.items.length > 0)
     .map((sec) => (
-      <Section key={sec.id} id="custom" title={sec.title || "Section"}>
+      <Section key={sec.id} id="custom" title={sec.title || resumeStrings(r).section}>
         {sec.items.map((it) => (
           <div className="rp-entry" key={it.id}>
             <div className="rp-entry-head">
@@ -351,7 +344,7 @@ export function ResumePreview({
     ["--font-scale" as any]: String(settings.fontScale),
   } as React.CSSProperties
   const className = `resume-paper tpl-${template} density-${density} paper-${paperSizeOf(resume)}`
-  const paperProps = { id: printTarget ? "resume-print-area" : undefined, className, style, "data-template": template }
+  const paperProps = { id: printTarget ? "resume-print-area" : undefined, className, style, lang: languageOf(resume), "data-template": template }
 
   if (template === "twocolumn") {
     const aside = order.filter((k) => TWO_COLUMN_ASIDE.includes(k))

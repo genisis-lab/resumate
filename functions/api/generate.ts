@@ -20,6 +20,7 @@ import {
   withActionReservation,
 } from "../../server/ai-proxy"
 import { generateStructured } from "../../server/structured"
+import { translateSegments, validTranslationRequest } from "../../server/translate"
 
 type Task =
   | "coach"
@@ -34,6 +35,7 @@ type Task =
   | "recruiter_email"
   | "linkedin"
   | "job_decode"
+  | "translate"
 
 const TASKS = new Set<Task>([
   "coach",
@@ -48,6 +50,7 @@ const TASKS = new Set<Task>([
   "recruiter_email",
   "linkedin",
   "job_decode",
+  "translate",
 ])
 const TONES = new Set(["professional", "enthusiastic", "concise", "warm"])
 export const EMAIL_KINDS = ["outreach", "follow_up", "thank_you", "networking"] as const
@@ -68,6 +71,8 @@ interface GenerateBody extends ClientAiOptions {
   tone?: string
   emailKind?: EmailKind
   targetRole?: string
+  targetLanguage?: string
+  segments?: unknown
 }
 
 const CLICHES = "Avoid cliches such as \"results-driven\", \"hard-working\", \"team player\", \"go-getter\", \"passionate\", \"dynamic\", \"synergy\", and \"think outside the box\"."
@@ -150,6 +155,10 @@ function validateBody(body: GenerateBody): Response | null {
   if (body.task === 'coach' && (!COACH_MODES.includes(body.mode as CoachMode) || !body.resumeText?.trim() || (body.mode === 'evidence' && !body.jobDescription?.trim()))) return text('Provide the source text and required coaching context', 400)
   if (body.task === "linkedin" && !body.resumeText?.trim()) return text("Missing resumeText", 400)
   if (body.task === "job_decode" && (body.jobDescription?.trim().length || 0) < 80) return text("Paste more of the job description", 400)
+  if (body.task === "translate") {
+    const checked = validTranslationRequest(body.targetLanguage, body.segments)
+    if (typeof checked === "string") return text(checked, /too (long|many)/.test(checked) ? 413 : 400)
+  } else if (body.segments !== undefined || body.targetLanguage !== undefined) return text("Unexpected translation fields", 400)
   const combinedCharacters = (body.context?.length || 0) + (body.resumeText?.length || 0)
     + (body.jobDescription?.length || 0)
     + (body.currentSummary?.length || 0)
@@ -467,6 +476,10 @@ async function handle(request: Request, env: AiEnv): Promise<Response> {
       if (body.task === "linkedin") return await linkedinProfile(body, writing)
       if (body.task === "job_decode") return await decodeJob(body, settings)
       if (body.task === "cover_letter" || body.task === "recruiter_email") return await plainTextDocument(body, writing)
+      if (body.task === "translate") {
+        const checked = validTranslationRequest(body.targetLanguage, body.segments) as Exclude<ReturnType<typeof validTranslationRequest>, string>
+        return await translateSegments(writing, checked.language, checked.segments)
+      }
       return text("Unknown task", 400)
     })
   } catch (error) {

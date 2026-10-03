@@ -218,3 +218,12 @@ export async function aiCoach(mode: CoachMode, source: string, job = '', context
   if (!Array.isArray(result.items) || typeof result.followUp !== 'string' || result.items.some(item => !item || ['original', 'suggestion', 'reason', 'category'].some(key => typeof item[key as keyof typeof item] !== 'string'))) throw new Error('AI returned invalid coaching feedback.')
   return result
 }
+
+export async function aiTranslateResume(resume: Resume, language: "en" | "es" | "fr"): Promise<Resume> {
+  const { translationSegments, applyTranslations } = await import("./translateResume")
+  const segments = translationSegments(resume)
+  if (!segments.length) throw new Error("Add some resume content before translating.")
+  const data = await postGenerate<{ translations: { id: string; text: string }[] }>({ task: "translate", targetLanguage: language, segments })
+  if (!Array.isArray(data.translations)) throw new Error("AI returned an invalid translation. Your resume has not changed.")
+  return applyTranslations(resume, language, data.translations)
+}
