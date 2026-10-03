@@ -10,6 +10,79 @@ type AdminOverview = {
   audits: Array<{ action: string; targetUserId: string; reason: string; createdAt: number }>
 }
 
+type SmokeCheck = { model: string; check: "structured" | "plain_text"; ok: boolean; latencyMs: number; preview: string; error?: string }
+type SmokeResult = { precise: string; writing: string; ranAt: number; checks: SmokeCheck[] }
+
+const SMOKE_MODELS = [
+  ["", "Configured models"],
+  ["all", "Every allowlisted model"],
+  ["@cf/qwen/qwen3-30b-a3b-fp8", "Qwen3 30B"],
+  ["@cf/openai/gpt-oss-120b", "gpt-oss-120b"],
+  ["@cf/openai/gpt-oss-20b", "gpt-oss-20b"],
+  ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "Llama 3.3 70B"],
+  ["@cf/meta/llama-4-scout-17b-16e-instruct", "Llama 4 Scout"],
+  ["@cf/ibm-granite/granite-4.0-h-micro", "Granite 4.0 Micro"],
+] as const
+
+function shortModel(model: string): string {
+  return model.slice(model.lastIndexOf("/") + 1) || model
+}
+
+function AiSmokeTest() {
+  const [model, setModel] = useState("")
+  const [result, setResult] = useState<SmokeResult | null>(null)
+  const [running, setRunning] = useState(false)
+  const [error, setError] = useState("")
+
+  async function run() {
+    setRunning(true)
+    setError("")
+    try {
+      const response = await fetch("/api/admin/ai-smoke", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(model ? { model } : {}),
+      })
+      if (!response.ok) throw new Error(await response.text() || "Smoke test failed.")
+      setResult(await response.json() as SmokeResult)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Smoke test failed.")
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <section className="admin-section">
+      <div className="admin-section-head">
+        <div><span className="account-label">Hosted AI</span><h2>Model smoke test</h2></div>
+        <div className="admin-smoke-controls">
+          <select className="field-input" value={model} onChange={(event) => setModel(event.target.value)} aria-label="Models to test">
+            {SMOKE_MODELS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+          <button className="btn-primary small" disabled={running} onClick={() => void run()}>{running ? "Running…" : "Run smoke test"}</button>
+        </div>
+      </div>
+      <p className="muted">Sends a fixed, fictional resume through each model: one JSON summary that must use only listed skills, and one plain-text thank-you note. It uses a small number of neurons, never touches user data, and does not count against any plan. It skips fallback, so each model is judged on its own output.</p>
+      {error && <p className="form-message error" role="alert">{error}</p>}
+      {result && <>
+        <p className="admin-smoke-config">Precise: <code>{shortModel(result.precise)}</code> · Writing: <code>{shortModel(result.writing)}</code> · {new Date(result.ranAt).toLocaleTimeString()}</p>
+        <div className="admin-smoke-grid">
+          {result.checks.map((check) => (
+            <article key={`${check.model}-${check.check}`} className={`admin-smoke-card ${check.ok ? "ok" : "fail"}`}>
+              <header><strong>{shortModel(check.model)}</strong><span>{check.check === "structured" ? "JSON summary" : "Plain text"}</span></header>
+              <dl><div><dt>Result</dt><dd>{check.ok ? "Pass" : "Fail"}</dd></div><div><dt>Latency</dt><dd>{(check.latencyMs / 1000).toFixed(1)}s</dd></div></dl>
+              {check.preview && <p>{check.preview}</p>}
+              {check.error && <p className="form-message error">{check.error}</p>}
+            </article>
+          ))}
+        </div>
+      </>}
+    </section>
+  )
+}
+
 const EVENT_LABELS: Record<string, string> = {
   landing_view: "Landing views",
   signup_started: "Signup starts",
@@ -84,6 +157,7 @@ export function Admin({ user }: { user: AccountUser | null }) {
           <div className="admin-section-head"><div><span className="account-label">Last 30 days</span><h2>Conversion path</h2></div><button className="btn-ghost small" onClick={() => void load()}>Refresh</button></div>
           <div className="admin-funnel">{data.funnel.length ? data.funnel.map((event) => <div key={event.eventName}><span>{EVENT_LABELS[event.eventName] || event.eventName}</span><strong>{event.count}</strong></div>) : <p className="muted">No conversion events recorded yet.</p>}</div>
         </section>
+        <AiSmokeTest />
         <section className="admin-section">
           <div className="admin-section-head"><div><span className="account-label">Verified identity and plans</span><h2>Recent accounts</h2></div><span>{data.users.length} shown</span></div>
           <div className="admin-users">{data.users.map((account) => <article key={account.id} className="admin-user-card"><div><strong>{account.name}</strong><span>{account.email}</span></div><dl><div><dt>Plan</dt><dd>{account.plan}</dd></div><div><dt>Verified</dt><dd>{account.emailVerifiedAt ? "Yes" : "No"}</dd></div><div><dt>AI this month</dt><dd>{account.aiActions}</dd></div></dl><button className="btn-ghost small" disabled={account.id === user.id} onClick={() => { setTarget(account); setReason("") }}>Support action</button></article>)}</div>

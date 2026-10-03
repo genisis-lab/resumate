@@ -8,6 +8,7 @@ import {
   callAI,
   enforceAiQuota,
   enforcePostAndOrigin,
+  forTask,
   hasOnlyKeys,
   json,
   readBoundedJson,
@@ -453,16 +454,19 @@ async function handle(request: Request, env: AiEnv): Promise<Response> {
     const quota = await enforceAiQuota(request, env, `generate:${body.task}`, Boolean(body.clientKey))
     if (quota instanceof Response) return quota
 
+    // Long-form writing goes to the writing model (gpt-oss-120b by default);
+    // extraction, checking and short rewrites stay on the fast precise model.
+    const writing = forTask(settings, "writing")
     return await withActionReservation(quota, async () => {
       if (body.task === "coach") return await runCoach(body.mode!, body.resumeText!, body.jobDescription || "", body.context || "", settings)
       if (body.task === "rewrite" || body.task === "quantify") return await rewriteBullets(body, settings)
-      if (body.task === "summary" || body.task === "summary_scratch") return await generateSummary(body, settings)
-      if (body.task === "tailor") return await tailorResume(body, settings)
+      if (body.task === "summary" || body.task === "summary_scratch") return await generateSummary(body, writing)
+      if (body.task === "tailor") return await tailorResume(body, writing)
       if (body.task === "proofread") return await proofread(body, settings)
-      if (body.task === "interview") return await interview(body, settings)
-      if (body.task === "linkedin") return await linkedinProfile(body, settings)
+      if (body.task === "interview") return await interview(body, writing)
+      if (body.task === "linkedin") return await linkedinProfile(body, writing)
       if (body.task === "job_decode") return await decodeJob(body, settings)
-      if (body.task === "cover_letter" || body.task === "recruiter_email") return await plainTextDocument(body, settings)
+      if (body.task === "cover_letter" || body.task === "recruiter_email") return await plainTextDocument(body, writing)
       return text("Unknown task", 400)
     })
   } catch (error) {

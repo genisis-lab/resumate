@@ -61,14 +61,36 @@ describe("model output cleanup", () => {
 })
 
 describe("hosted Workers AI requests", () => {
-  it("turns off Qwen3 thinking and states the JSON schema in the system prompt", async () => {
+  it("sends writing tasks to gpt-oss-120b with low reasoning effort and the schema in the developer prompt", async () => {
     const { env, run } = workersEnv({ summary: "Senior product designer who ships accessible design systems." })
     const response = await call(generate, { task: "summary_scratch", resumeText: RESUME }, env)
     expect(response.status).toBe(200)
-    const [model, input] = run.mock.calls[0] as unknown as [string, { messages: { role: string; content: string }[] }]
+    const [model, input] = run.mock.calls[0] as unknown as [string, { input: { role: string; content: string }[]; reasoning: { effort: string } }]
+    expect(model).toBe("@cf/openai/gpt-oss-120b")
+    expect(input.reasoning.effort).toBe("low")
+    expect(input.input[0].role).toBe("developer")
+    expect(input.input[0].content).toContain('"summary"')
+    expect(input.input[0].content).not.toContain("/no_think")
+  })
+
+  it("keeps extraction tasks on Qwen3 with thinking turned off", async () => {
+    const { env, run } = workersEnv({ summary: "Own product design.", seniority: "Senior", mustHaves: ["Figma"], niceToHaves: [], responsibilities: [], keywords: ["Figma"], watchOuts: [], questionsToAsk: [] })
+    const response = await call(generate, { task: "job_decode", jobDescription: JOB }, env)
+    expect(response.status).toBe(200)
+    const [model, input] = run.mock.calls[0] as unknown as [string, { messages: { role: string; content: string }[]; response_format: unknown }]
     expect(model).toBe("@cf/qwen/qwen3-30b-a3b-fp8")
     expect(input.messages[0].content).toContain("/no_think")
-    expect(input.messages[0].content).toContain('"summary"')
+    expect(input.response_format).toEqual({ type: "json_object" })
+  })
+
+  it("falls back to the precise model when the writing model errors", async () => {
+    const run = vi.fn(async (model: string) => {
+      if (model.includes("gpt-oss")) throw new Error("3040: capacity temporarily exceeded")
+      return { response: { summary: "Designer focused on accessible systems." } }
+    })
+    const response = await call(generate, { task: "summary_scratch", resumeText: RESUME }, { AI: { run }, DB: quotaDb() })
+    expect(response.status).toBe(200)
+    expect(run.mock.calls.map((args) => args[0])).toEqual(["@cf/openai/gpt-oss-120b", "@cf/qwen/qwen3-30b-a3b-fp8"])
   })
 
   it("makes one corrective retry when the first reply is malformed", async () => {
@@ -76,8 +98,10 @@ describe("hosted Workers AI requests", () => {
     const response = await call(generate, { task: "summary_scratch", resumeText: RESUME }, env)
     expect(response.status).toBe(200)
     expect(run).toHaveBeenCalledTimes(2)
-    const retryMessages = (run.mock.calls[1] as unknown as [string, { messages: { role: string; content: string }[] }])[1].messages
-    expect(retryMessages.at(-1)?.content).toContain("previous reply was rejected")
+    // The corrective retry gets a second opinion from the precise model.
+    const [retryModel, retryInput] = run.mock.calls[1] as unknown as [string, { messages: { role: string; content: string }[] }]
+    expect(retryModel).toBe("@cf/qwen/qwen3-30b-a3b-fp8")
+    expect(retryInput.messages.at(-1)?.content).toContain("previous reply was rejected")
     expect(env.DB.writes.filter((write) => write.values[0] === "committed")).toHaveLength(1)
   })
 
@@ -89,15 +113,29 @@ describe("hosted Workers AI requests", () => {
     expect(env.DB.writes.some((write) => write.values[0] === "released")).toBe(true)
   })
 
-  it("accepts an allowlisted model override and ignores anything else", async () => {
-    for (const [requested, expected] of [["@cf/openai/gpt-oss-120b", "@cf/openai/gpt-oss-120b"], ["@cf/evil/model", "@cf/qwen/qwen3-30b-a3b-fp8"]]) {
-      const run = vi.fn(async () => ({ output_text: JSON.stringify({ summary: "Accessible design systems leader." }) }))
-      const response = await call(generate, { task: "summary_scratch", resumeText: RESUME }, { AI: { run }, DB: quotaDb(), AI_HOSTED_MODEL: requested })
+  it("accepts allowlisted model overrides and ignores anything else", async () => {
+    const decoded = { summary: "Own product design.", seniority: "Senior", mustHaves: [], niceToHaves: [], responsibilities: [], keywords: [], watchOuts: [], questionsToAsk: [] }
+    for (const [requested, expected] of [["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-3.3-70b-instruct-fp8-fast"], ["@cf/evil/model", "@cf/qwen/qwen3-30b-a3b-fp8"]]) {
+      const run = vi.fn(async () => ({ response: decoded }))
+      const response = await call(generate, { task: "job_decode", jobDescription: JOB }, { AI: { run }, DB: quotaDb(), AI_HOSTED_MODEL: requested })
       expect(response.status).toBe(200)
       expect((run.mock.calls[0] as unknown as [string])[0]).toBe(expected)
       const input = (run.mock.calls[0] as unknown as [string, { messages: { content: string }[] }])[1]
       expect(input.messages[0].content.includes("/no_think")).toBe(expected.includes("qwen3"))
     }
+    for (const [requested, expected] of [["@cf/openai/gpt-oss-20b", "@cf/openai/gpt-oss-20b"], ["@cf/evil/model", "@cf/openai/gpt-oss-120b"]]) {
+      const run = vi.fn(async () => ({ output_text: JSON.stringify({ summary: "Accessible design systems leader." }) }))
+      const response = await call(generate, { task: "summary_scratch", resumeText: RESUME }, { AI: { run }, DB: quotaDb(), AI_WRITING_MODEL: requested })
+      expect(response.status).toBe(200)
+      expect((run.mock.calls[0] as unknown as [string])[0]).toBe(expected)
+    }
+  })
+
+  it("uses one model for everything when the writing model matches the precise model", async () => {
+    const run = vi.fn(async () => ({ response: { summary: "Accessible design systems leader." } }))
+    const env = { AI: { run }, DB: quotaDb(), AI_WRITING_MODEL: "@cf/qwen/qwen3-30b-a3b-fp8" }
+    expect((await call(generate, { task: "summary_scratch", resumeText: RESUME }, env)).status).toBe(200)
+    expect((run.mock.calls[0] as unknown as [string])[0]).toBe("@cf/qwen/qwen3-30b-a3b-fp8")
   })
 
   it("treats an empty answer (reasoning used the whole budget) as a failure", async () => {
@@ -160,9 +198,9 @@ describe("new AI tasks", () => {
     const run = vi.fn(async () => ({ response: "Subject: Thank you\n\nThank you for discussing the design systems roadmap.\n\nJordan Avery" }))
     const ok = await call(generate, { task: "recruiter_email", emailKind: "thank_you", context: "Interviewer: Sam. Discussed design systems roadmap.", resumeText: RESUME, jobDescription: JOB }, { AI: { run }, DB: quotaDb() })
     expect(ok.status).toBe(200)
-    const input = (run.mock.calls[0] as unknown as [string, { messages: { content: string }[] }])[1]
-    expect(input.messages[0].content).toContain("thank-you email")
-    expect(input.messages[1].content).toContain("Interviewer: Sam")
+    const input = (run.mock.calls[0] as unknown as [string, { input: { role: string; content: string }[] }])[1]
+    expect(input.input[0].content).toContain("thank-you email")
+    expect(input.input[1].content).toContain("Interviewer: Sam")
   })
 
   it("retries a cover letter that still contains template placeholders", async () => {

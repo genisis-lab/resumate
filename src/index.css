@@ -809,6 +809,20 @@ body.printing .nav, body.printing .builder-bar, body.printing .editor-pane, body
 .admin-funnel > div { display: grid; gap: 12px; padding: 14px; background: var(--surface-2); border-radius: 10px; }
 .admin-funnel span { color: var(--text-soft); font-size: 12px; overflow-wrap: anywhere; }
 .admin-funnel strong { font-size: 22px; }
+.admin-smoke-controls { display: flex; gap: 8px; align-items: center; }
+.admin-smoke-controls select { min-width: 200px; }
+.admin-smoke-config { margin: 14px 0 10px; color: var(--text-soft); font-size: 13px; }
+.admin-smoke-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.admin-smoke-card { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--border); border-left-width: 3px; border-radius: 10px; background: var(--surface-2); min-width: 0; }
+.admin-smoke-card.ok { border-left-color: var(--success, #16a34a); }
+.admin-smoke-card.fail { border-left-color: var(--danger, #dc2626); }
+.admin-smoke-card header { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.admin-smoke-card header span { color: var(--text-soft); }
+.admin-smoke-card dl { display: flex; gap: 18px; margin: 0; font-size: 12px; }
+.admin-smoke-card dt { color: var(--text-soft); }
+.admin-smoke-card dd { margin: 0; font-weight: 600; }
+.admin-smoke-card p { margin: 0; font-size: 12.5px; line-height: 1.5; overflow-wrap: anywhere; }
+@media (max-width: 640px) { .admin-smoke-controls { flex-direction: column; align-items: stretch; } .admin-smoke-controls select { min-width: 0; } }
 .admin-users { display: grid; gap: 8px; }
 .admin-user-card { display: grid; grid-template-columns: minmax(180px, 1.2fr) 1fr auto; gap: 18px; align-items: center; min-width: 0; padding: 15px 0; border-top: 1px solid var(--border); }
 .admin-user-card > div { display: grid; min-width: 0; gap: 3px; }
