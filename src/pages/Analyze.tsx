@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { Resume } from "../types/resume"
 import { AtsResult, analyzeWithAI, analyzeLocally } from "../lib/ats"
 import { aiTailorResume, aiProofread, aiDecodeJob, TailorResult, type JobDecode } from "../lib/ai"
@@ -10,7 +10,7 @@ import { PaperFrame } from "../components/PaperFrame"
 import { navigate } from "../router"
 import { importResumeFromFile } from "../lib/importResume"
 import type { PlanId } from "../lib/billing"
-import { consumeUsage, usageSnapshot } from "../lib/usage"
+import { consumeFreeAction, syncFreeUsage, usageSnapshot } from "../lib/usage"
 import { AiActionBudget } from "../components/AiActionBudget"
 import { openUpgrade, upgradePromptViewed } from "../lib/analytics"
 
@@ -63,6 +63,12 @@ export function Analyze({
   const [proofErr, setProofErr] = useState("")
   const [jds, setJds] = useState<SavedJD[]>(() => listJDs())
   const [, refreshUsage] = useState(0)
+  useEffect(() => {
+    if (plan !== "free") return
+    let active = true
+    void syncFreeUsage(plan).then((changed) => { if (active && changed) refreshUsage((value) => value + 1) })
+    return () => { active = false }
+  }, [plan])
   const [aiActionVersion, setAiActionVersion] = useState(0)
   const analysisResume = uploadedResume || resume
   const localAtsUsage = usageSnapshot(plan, "localAtsChecks")
@@ -138,12 +144,14 @@ export function Analyze({
       return
     }
     if (!useAi) {
-      const quota = consumeUsage(plan, "localAtsChecks")
+      const quota = await consumeFreeAction(plan, "localAtsChecks")
       refreshUsage((value) => value + 1)
       if (!quota.allowed) {
         upgradePromptViewed("ats_limit", { plan })
         setAtsLimited(true)
-        setError("The Free plan includes 5 local ATS checks each month. Upgrade for expanded checks.")
+        setError(quota.blockedBy === "network"
+          ? "Free ATS checks from this network are used up for the month. Sign in to a free account to use your own 5 checks, or upgrade for unlimited checks."
+          : "The Free plan includes 5 ATS checks each month. Upgrade for unlimited checks.")
         return
       }
     }

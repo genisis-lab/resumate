@@ -182,7 +182,7 @@ function adminValues(value = ""): string[] {
     .filter(Boolean)
 }
 
-function isAdminUser(env: AiEnv, user: { id: string; email: string; emailVerifiedAt: number | null }): boolean {
+export function isAdminUser(env: AiEnv, user: { id: string; email: string; emailVerifiedAt: number | null }): boolean {
   const userIdAllowed = adminValues(env.ADMIN_USER_IDS).includes(user.id.toLowerCase())
   const verifiedEmailAllowed = Boolean(user.emailVerifiedAt)
     && adminValues(env.ADMIN_EMAILS).includes(user.email.toLowerCase())

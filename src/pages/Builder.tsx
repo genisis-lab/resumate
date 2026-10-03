@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import {
   ChevronDown, Copy, Download, Eraser, FileDown, FileJson, FilePlus2, FileText, FileType, FileUp, FolderInput,
@@ -22,7 +22,7 @@ import { fromJsonResume } from "../lib/jsonResume"
 import { navigate } from "../router"
 import { BottomSheet } from "../components/BottomSheet"
 import type { PlanId } from "../lib/billing"
-import { canUseTemplate, usageSnapshot, FREE_PLAN_LIMITS } from "../lib/usage"
+import { canUseTemplate, syncFreeUsage, usageSnapshot, FREE_PLAN_LIMITS } from "../lib/usage"
 import { TEMPLATES, templateMeta } from "../templates/registry"
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Popover, PopoverContent, PopoverTrigger } from "../components/ui/menu"
 import { confirmDialog, promptDialog } from "../components/ui/dialogs"
@@ -162,6 +162,13 @@ export function Builder({
   metricsRef.current = metrics
   const [fitting, setFitting] = useState(false)
   const [, refreshUsage] = useState(0)
+  // Signed-in Free accounts keep their export count on the server.
+  useEffect(() => {
+    if (!planReady || plan !== "free") return
+    let active = true
+    void syncFreeUsage(plan).then((changed) => { if (active && changed) refreshUsage((value) => value + 1) })
+    return () => { active = false }
+  }, [plan, planReady])
   const store = loadStore()
   const comp = useMemo(() => completeness(resume), [resume])
   const flags = useMemo(() => qualityFlags(resume), [resume])
@@ -319,8 +326,7 @@ export function Builder({
   }
 
   function runWordExport() {
-    exportResumeWord(resume, plan)
-    refreshUsage((value) => value + 1)
+    void exportResumeWord(resume, plan).finally(() => refreshUsage((value) => value + 1))
   }
 
   // Shrink font + tighten density until the resume fits on a single page.
