@@ -914,6 +914,19 @@ body.printing .nav, body.printing .builder-bar, body.printing .editor-pane, body
 .account-head p { color: var(--text-soft); font-size: 17px; }
 .account-grid { display: grid; grid-template-columns: .8fr 1.2fr; gap: 12px; }
 .account-card { min-height: 260px; padding: 32px; background: var(--surface); border-radius: 12px; }
+.sync-card { display: flex; flex-direction: column; gap: 12px; }
+.sync-card h2, .sync-card p { margin: 0; }
+.sync-title { display: flex; align-items: center; gap: 8px; }
+.sync-status { color: var(--text-soft); font-size: 14px; }
+.sync-status.error { color: var(--bad); }
+.sync-points { display: grid; gap: 8px; margin: 4px 0 0; padding: 0; list-style: none; font-size: 14px; color: var(--text-soft); }
+.sync-points li { display: grid; grid-template-columns: 16px 1fr; gap: 8px; align-items: start; }
+.sync-points svg { margin-top: 2px; color: var(--brand); }
+.sync-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.sync-actions .btn-ghost, .sync-card > .btn-ghost { display: inline-flex; align-items: center; gap: 6px; }
+.sync-form { display: grid; gap: 12px; }
+.check-row { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.sync-warning { font-size: 13px; color: var(--text-soft); line-height: 1.5; }
 .account-card h2 { margin: 48px 0 8px; font-size: 24px; }
 .account-card p { color: var(--text-soft); line-height: 1.6; }
 .account-label { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }

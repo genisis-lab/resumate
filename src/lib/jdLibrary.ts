@@ -3,6 +3,7 @@
 // against any of them without re-pasting.
 
 import { uid } from "./id"
+import { notifyStoreChanged, recordDeletion } from "./changes"
 
 export interface SavedJD {
   id: string
@@ -27,6 +28,7 @@ export function listJDs(): SavedJD[] {
 function persist(list: SavedJD[]): void {
   try {
     localStorage.setItem(JD_KEY, JSON.stringify(list))
+    notifyStoreChanged()
   } catch {
     /* ignore storage errors */
   }
@@ -51,5 +53,11 @@ export function saveJD(text: string, title?: string): SavedJD {
 }
 
 export function deleteJD(id: string): void {
+  recordDeletion(id)
   persist(listJDs().filter((j) => j.id !== id))
+}
+
+// Used by sync to replace the list with a merged copy.
+export function replaceJDs(list: SavedJD[]): void {
+  persist(list.filter((item) => item && typeof item.id === "string" && typeof item.text === "string").slice(0, 30))
 }

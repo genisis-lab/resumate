@@ -2,6 +2,7 @@ import { ComponentType, Suspense, lazy as reactLazy, useEffect, useRef, useState
 import { Toaster } from "sonner"
 import { ChevronDown, Keyboard, Sparkles } from "lucide-react"
 import { useResume } from "./hooks/useResume"
+import { useCloudSync } from "./hooks/useCloudSync"
 import { useRoute, navigate } from "./router"
 import { Landing } from "./pages/Landing"
 import { useAccount } from "./lib/auth"
@@ -140,6 +141,7 @@ export default function App() {
   const [showMobileNav, setShowMobileNav] = useState(false)
   const [theme] = useTheme()
   const account = useAccount()
+  useCloudSync(account.user)
   const effectivePlan = account.user?.isAdmin ? "pro" : account.user?.plan ?? "free"
 
   const isApp = !PUBLIC_ROUTES.has(route)

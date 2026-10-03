@@ -373,16 +373,16 @@ export async function enforceAiQuota(
   }
 }
 
-export async function readBoundedJson<T>(request: Request): Promise<T> {
+export async function readBoundedJson<T>(request: Request, maximumBytes = MAX_REQUEST_BYTES): Promise<T> {
   const rawLength = request.headers.get("Content-Length")
   if (rawLength) {
     const declaredLength = Number(rawLength)
     if (!Number.isFinite(declaredLength) || declaredLength < 0) throw new RequestError("Invalid Content-Length", 400)
-    if (declaredLength > MAX_REQUEST_BYTES) throw new RequestError("Input too large", 413)
+    if (declaredLength > maximumBytes) throw new RequestError("Input too large", 413)
   }
   if (!request.body) throw new RequestError("Invalid JSON body", 400)
 
-  const bytes = await readBoundedStream(request.body, MAX_REQUEST_BYTES, "Input too large", 413)
+  const bytes = await readBoundedStream(request.body, maximumBytes, "Input too large", 413)
   try {
     return JSON.parse(new TextDecoder().decode(bytes)) as T
   } catch {

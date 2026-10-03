@@ -3,6 +3,7 @@ import { confirmDialog } from "../components/ui/dialogs"
 import { AccountUser, deleteAccount, logoutAccount } from "../lib/auth"
 import { navigate } from "../router"
 import { openUpgrade } from "../lib/analytics"
+import { CloudSyncCard } from "../components/CloudSyncCard"
 
 export function Account({ user, onChanged }: { user: AccountUser | null; onChanged: () => Promise<void> }) {
   const [error, setError] = useState("")
@@ -41,7 +42,7 @@ export function Account({ user, onChanged }: { user: AccountUser | null; onChang
       setError("Enter your password to delete your account.")
       return
     }
-    if (!(await confirmDialog({ title: "Delete your ResuMate account?", description: "This cannot be undone. Resumes saved in this browser will remain unless you clear them separately.", confirmLabel: "Delete account", tone: "danger" }))) return
+    if (!(await confirmDialog({ title: "Delete your ResuMate account?", description: "This cannot be undone. Your encrypted synced copy, if any, is deleted with the account. Resumes saved in this browser will remain unless you clear them separately.", confirmLabel: "Delete account", tone: "danger" }))) return
     setDeleting(true)
     try {
       await deleteAccount(deletePassword)
@@ -79,7 +80,7 @@ export function Account({ user, onChanged }: { user: AccountUser | null; onChang
           )}
           {!billing && <button className="btn-primary" onClick={() => openUpgrade("account")}>See upgrade options</button>}
         </section>
-        <section className="account-card account-data"><span className="account-label">Resume storage</span><h2>Saved on this device</h2><p>Your existing resumes have not been uploaded. Export a backup from the editor before clearing browser data.</p><button className="btn-ghost" onClick={() => navigate("/builder")}>Open editor</button></section>
+        <CloudSyncCard user={user} />
       </div>
       <section className="account-actions">
         <h2>Account controls</h2>

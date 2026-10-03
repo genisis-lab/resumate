@@ -27,7 +27,9 @@ export function Privacy() {
 
       <LegalSection title="2. Information we handle">
         <ul className="bullet-list">
-          <li><strong>On-device content.</strong> Resumes, saved job descriptions, theme settings, and optional AI-provider settings are stored in your browser unless you choose an online feature or future account-sync feature.</li>
+          <li><strong>On-device content.</strong> Resumes, saved job descriptions, application notes, theme settings, and optional AI-provider settings are stored in your browser unless you choose an online feature or turn on encrypted sync.</li>
+          <li><strong>Encrypted sync (optional, Pro).</strong> If you turn it on, your browser encrypts your resumes, saved job descriptions, and application notes with a key derived from a passphrase that never leaves your device. We store only the encrypted copy, its version number, the time it changed, and a device label such as "Chrome on macOS". We cannot read or recover the contents.</li>
+          <li><strong>Usage counts.</strong> To apply Free-plan limits we count exports and ATS checks per account, or for signed-out visitors per network using a keyed hash of the IP address that changes every month. We also record anonymous product events such as "upgrade prompt shown" with a short label of where it appeared; these carry no resume text, name, or account identifier.</li>
           <li><strong>Account information.</strong> If you register, we process your name, email address, password-derived authentication data, email-verification status, plan, and account activity.</li>
           <li><strong>Resume and job-search content.</strong> This may include contact details, work history, education, skills, job descriptions, cover letters, and other text you enter. Online AI features receive only the content needed for the request you initiate.</li>
           <li><strong>Payment information.</strong> For paid plans, our checkout provider processes payment-card and billing details. We receive transaction details such as the plan, amount, currency, status, and a payment-customer identifier, but not your full card number.</li>
@@ -37,7 +39,7 @@ export function Privacy() {
 
       <LegalSection title="3. How we use information">
         <ul className="bullet-list">
-          <li>Provide the editor, exports, accounts, optional AI tools, future account sync, subscriptions, and customer support.</li>
+          <li>Provide the editor, exports, accounts, optional AI tools, optional encrypted sync, subscriptions, and customer support.</li>
           <li>Authenticate accounts, remember settings, and maintain service security.</li>
           <li>Process purchases, prevent fraud, keep accounting records, and send service or billing notices.</li>
           <li>Debug, maintain, and improve ResuMate using aggregated or appropriately limited technical information.</li>
@@ -87,7 +89,9 @@ export function Privacy() {
       <LegalSection title="7. Storage and retention">
         <p>
           Browser data remains on your device until you clear it, remove the browser profile, or use
-          ResuMate's Clear data control. If account storage is offered, we retain account content
+          ResuMate's Clear data control. An encrypted sync copy is kept until you erase it from your
+          account page or delete your account; erasing it removes it from our database immediately,
+          and backups expire on our hosting provider's schedule. We retain other account data
           while the account is active and for a limited period after deletion to complete deletion,
           maintain backups, resolve disputes, prevent fraud, and meet legal obligations. Payment and
           tax records may be kept for the legally required period. Security logs are retained only as

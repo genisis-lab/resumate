@@ -28,7 +28,6 @@ const PLANS = [
       "AI resume review, job match, tailoring, rewriting, cover letters, and interview prep",
       "LinkedIn optimizer, job decoder, and follow-up and thank-you emails",
       `All ${TEMPLATES.length} templates, including ${PREMIUM_TEMPLATE_COUNT} Premium designs, and unlimited PDF/Word exports`,
-      "Interview tools and 30-day cloud sync when available",
     ],
     action: "Get launch notice",
     href: "mailto:support@builtwai.com?subject=ResuMate%20Career%20Sprint%20launch",
@@ -46,7 +45,7 @@ const PLANS = [
       "150 Cloudflare-hosted AI actions each month",
       "Every AI tool: resume review, LinkedIn optimizer, job decoder, cover letters, and interview prep",
       `All ${TEMPLATES.length} templates and unlimited PDF/Word exports`,
-      "Version history and multi-device sync when available",
+      "Optional end-to-end encrypted sync across your devices",
       "Priority support and 25 active share links",
     ],
     action: "Get launch notice",
@@ -60,7 +59,7 @@ const COMPARISON = [
   { feature: "PDF or Word exports", free: "3 / month", sprint: "Unlimited", pro: "Unlimited" },
   { feature: "Local ATS checks", free: "5 / month", sprint: "Expanded", pro: "Expanded" },
   { feature: "Hosted AI job match and writing", free: "Not included", sprint: "40 actions / 30 days", pro: "150 actions / month" },
-  { feature: "Cloud sync", free: "—", sprint: "30 days planned", pro: "Planned" },
+  { feature: "Encrypted sync across devices", free: "—", sprint: "—", pro: "Optional" },
   { feature: "Version history", free: "Current", sprint: "30 days planned", pro: "1 year planned" },
 ]
 
@@ -96,6 +95,10 @@ const FAQS = [
   {
     question: "What is the refund policy?",
     answer: "When payments launch, first purchases will have a 14-day refund window and subscription renewals a 7-day window, subject to stronger rights under local law.",
+  },
+  {
+    question: "How does Pro sync keep my resumes private?",
+    answer: "Sync is off until you turn it on. Your browser encrypts your resumes, saved job posts, and applications with a passphrase only you know before anything is uploaded, so ResuMate stores ciphertext it cannot read. If you forget the passphrase we cannot recover the synced copy, but resumes saved in each browser are unaffected.",
   },
   {
     question: "Is my resume used to train AI models?",
