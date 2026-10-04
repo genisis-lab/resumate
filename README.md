@@ -1,6 +1,6 @@
 # ResuMate — self-serve resume builder
 
-A browser-first resume builder built with **React + Vite**. Users enter their own details, choose from seventeen original templates (3 free, 14 Premium), run a local job-description match check, and export to **PDF** or **Word (.docx)**. Editing stays in browser storage unless a future sync feature is deliberately enabled. Verified accounts manage software access and the future upgrade path; creating an account does not upload existing resumes.
+A browser-first resume builder built with **React + Vite**. Users enter their own details, choose from seventeen original templates (3 free, 14 Premium), run a local job-description match check, and export to **PDF** or **Word (.docx)**. Editing stays in browser storage; Pro users can opt in to end-to-end encrypted sync between devices. Verified accounts manage plans and billing; creating an account does not upload existing resumes.
 
 > **Live:** https://resume.builtwai.com/
 
@@ -14,6 +14,8 @@ A browser-first resume builder built with **React + Vite**. Users enter their ow
 - 🎯 **Local ATS check** — paste a job description for on-device keyword and structure feedback
 - 📄 **PDF & Word export** — vector, selectable, ATS-parseable PDF + a genuine, editable `.docx`
 - 🖨️ **True-to-print preview** — the page renders at its printed size, so line breaks and the page counter match the PDF
+- 🌍 **Spanish and French resumes** — localized headings on every plan, AI translation into a new copy on paid plans
+- 🔐 **Optional encrypted sync (Pro)** — the browser encrypts the workspace with a passphrase the server never sees
 
 ## Features
 
@@ -30,6 +32,7 @@ A browser-first resume builder built with **React + Vite**. Users enter their ow
 
 - **17 templates** registered in `src/templates/registry.ts`. Free: Modern, Classic, ATS-Safe. Premium: Horizon, Elegant, Timeline, Swiss Grid, Bold, Developer, Monogram, Professional Serif, Minimal, Two-Column, Creative, Executive, Compact, and Technical. Free plans can preview Premium templates on their own resume; PDF download requires Career Sprint or Pro.
 - **Accent color (presets or custom), font-size, density, and paper size** (US Letter or A4).
+- **Resume language** — English, Spanish, or French headings, labels, and "Present" in the preview and every export (Word files also get the matching document language).
 - **Fit to one page** — auto-shrinks density and font scale until the resume fits, with an exact page-count badge and page-break guides.
 - **ATS-safe PDFs** — template fonts are static TrueType files (Chromium embeds variable fonts as Type 3, which parsers read without word spaces), no text opacity, and capped letter-spacing so headings extract intact.
 - **Drag-and-drop reordering** — reorder bullets and resume sections via drag handles (arrow buttons as a fallback).
@@ -48,7 +51,14 @@ A browser-first resume builder built with **React + Vite**. Users enter their ow
 - **Cover letter generator**, **interview prep** with outreach, follow-up, thank-you, and networking emails, and a **LinkedIn optimizer**.
 - **AI coach** — full resume review, role builder, grammar, job-evidence mapping, consistency check, and interview practice. Suggestions are shown as a word diff and applied only when accepted.
 - **Job decoder** — must-haves, nice-to-haves, keywords, things to clarify, and questions to ask.
+- **AI translation** — translates the summary, titles, bullets, and skills into Spanish, French, or English as a new resume version. Names, employers, schools, contact details, and numbers are never changed.
 - **Hosted AI** on Cloudflare Workers AI for Career Sprint and Pro, metered per action.
+
+### Sync, limits, and analytics
+
+- **Encrypted sync (Pro, opt-in)** — PBKDF2-SHA-256 (600,000 iterations) derives a non-extractable AES-GCM key from the user's sync passphrase; the workspace (resumes, saved job posts, applications) is gzip-compressed and encrypted with the user id as associated data. D1 stores ciphertext plus a version number; uploads must build on the version the device merged. Merges keep the newest copy per item and honour deletions.
+- **Server-side Free limits** — signed-in Free accounts are counted in D1 (3 exports and 5 ATS checks a month); signed-out visitors keep the per-browser count with a looser per-network backstop keyed by an HMAC of the IP. Offline, the browser count applies.
+- **Upgrade-funnel analytics** — anonymous counts of upgrade prompts shown and clicked by placement, pricing views, premium previews, and exports; the placement is carried through checkout to attribute purchases. The owner console charts the funnel.
 - **Bring-your-own-key (BYOK)** option in Settings.
 
 ### Accessibility & power use
@@ -79,7 +89,7 @@ npm run build
 npx wrangler pages dev dist
 ```
 
-Hosted AI uses the Workers AI binding (`AI` in `wrangler.jsonc`) with `@cf/qwen/qwen3-30b-a3b-fp8` by default. Set `AI_HOSTED_MODEL` to another allowlisted model (see `HOSTED_MODEL_ALLOWLIST` in `server/ai-proxy.ts`, for example `@cf/openai/gpt-oss-120b`) to switch models without a code change. Every structured response is schema-validated, grounded against the supplied text where possible, and retried once with the validation error before failing; failed requests do not consume an AI action.
+Hosted AI uses the Workers AI binding (`AI` in `wrangler.jsonc`) with two models. Scoring, extraction, proofreading, and bullet rewrites use the precise model, `@cf/qwen/qwen3-30b-a3b-fp8`. Summaries, tailoring, cover letters, emails, LinkedIn, interview prep, coaching drafts, and translation use the writing model, `@cf/openai/gpt-oss-120b` with low reasoning effort, and fall back to the precise model on errors or invalid output. Override either with `AI_HOSTED_MODEL` / `AI_WRITING_MODEL` (allowlist: `HOSTED_MODEL_ALLOWLIST` in `server/ai-proxy.ts`), then use **Run smoke test** in the owner console (`/admin`) to check each model's JSON and plain-text output and latency. Every structured response is schema-validated, grounded against the supplied text where possible, and retried once with the validation error before failing; failed requests do not consume an AI action.
 
 `.dev.vars` example:
 
@@ -89,7 +99,11 @@ AI_MODEL=gpt-4o-mini
 RESEND_API_KEY=re_your_test_key
 EMAIL_FROM=ResuMate <verification@contact.builtwai.com>
 APP_URL=http://localhost:8788
+USAGE_HASH_SECRET=any-long-random-string
+ADMIN_EMAILS=you@example.com
 ```
+
+`USAGE_HASH_SECRET` keys the hashes used for signed-out Free limits and analytics rate limits; set it as an encrypted secret in production. `wrangler pages dev` needs a Cloudflare API token for the remote `AI` binding; without one, remove the binding locally and the rest of the app (accounts, sync, limits, analytics) runs against a local D1.
 
 ## Build
 
@@ -149,7 +163,7 @@ scripts/build-offline.mjs  esbuild build (no Vite/network)
 
 ## Privacy
 
-Resume editing and local ATS checks run in your browser. Account records contain identity, verification, session, and plan data, but existing resumes are not uploaded. When you deliberately choose an online AI feature, the selected resume and/or job-description text is sent through the serverless proxy to the configured AI provider. Share links encode the resume in the URL fragment, so the payload is not included in ordinary HTTP requests, but it is not encrypted and should be treated as public.
+Resume editing and local ATS checks run in your browser. Account records contain identity, verification, session, and plan data, but existing resumes are not uploaded. If a Pro user turns on sync, only an encrypted copy is stored, and ResuMate cannot decrypt it. When you deliberately choose an online AI feature, the selected resume and/or job-description text is sent through the serverless proxy to the configured AI provider. Share links encode the resume in the URL fragment, so the payload is not included in ordinary HTTP requests, but it is not encrypted and should be treated as public.
 
 ## License
 

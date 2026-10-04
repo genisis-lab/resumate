@@ -78,7 +78,7 @@ export function Account({ user, onChanged }: { user: AccountUser | null; onChang
               <a className="btn-primary" href={billing.manageUrl} target="_blank" rel="noreferrer">Manage billing on Whop</a>
             </div>
           )}
-          {!billing && <button className="btn-primary" onClick={() => openUpgrade("account")}>See upgrade options</button>}
+          {!billing && !user.isAdmin && user.plan !== "pro" && <button className="btn-primary" onClick={() => openUpgrade("account")}>{user.plan === "sprint" ? "See Pro" : "See upgrade options"}</button>}
         </section>
         <CloudSyncCard user={user} />
       </div>
