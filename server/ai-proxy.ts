@@ -5,6 +5,8 @@ export type AiEnv = Cloudflare.Env & {
   AI_MODEL?: string
   /** Optional Workers AI model override; must be one of HOSTED_MODEL_ALLOWLIST. */
   AI_HOSTED_MODEL?: string
+  /** Optional Workers AI model for prose-heavy tasks; defaults to gpt-oss-120b. */
+  AI_WRITING_MODEL?: string
   ADMIN_USER_IDS?: string
   ADMIN_EMAILS?: string
 }
@@ -26,7 +28,13 @@ export interface WorkersAiSettings {
   kind: "workers-ai"
   binding: Ai
   model: HostedModel
+  /** Model used when a task is routed to the writing profile. */
+  writingModel?: HostedModel
+  /** Model retried automatically when `model` errors or returns invalid output. */
+  fallbackModel?: HostedModel
 }
+
+export type TaskProfile = "writing" | "precise"
 
 export type AiSettings = ExternalAiSettings | WorkersAiSettings
 
@@ -44,11 +52,13 @@ export interface JsonSchema {
 
 export const MAX_REQUEST_BYTES = 128 * 1024
 export const HOSTED_AI_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8" as const
-// Workers AI chat models that accept `messages` plus JSON mode and return an
-// OpenAI-style envelope. Qwen3 30B (MoE, 3B active) stays the default: it is
-// the cheapest capable option per neuron. gpt-oss-120b writes better prose at
-// roughly 2x the output cost and 7x the input cost; switch with AI_HOSTED_MODEL
-// after a production smoke test.
+// Workers AI models this app knows how to call. Qwen3 30B (MoE, 3B active) is
+// the precise model: the cheapest capable option per neuron, used for scoring,
+// extraction, proofreading and bullet rewrites. gpt-oss-120b is the writing
+// model for summaries, letters, emails and coaching drafts; it costs roughly 2x
+// per output token and 7x per input token, and falls back to the precise model
+// on errors. Override either with AI_HOSTED_MODEL / AI_WRITING_MODEL and check
+// the result with the admin console's AI smoke test.
 export const HOSTED_MODEL_ALLOWLIST = [
   HOSTED_AI_MODEL,
   "@cf/openai/gpt-oss-120b",
@@ -58,15 +68,19 @@ export const HOSTED_MODEL_ALLOWLIST = [
   "@cf/ibm-granite/granite-4.0-h-micro",
 ] as const
 export type HostedModel = typeof HOSTED_MODEL_ALLOWLIST[number]
+export const DEFAULT_WRITING_MODEL: HostedModel = "@cf/openai/gpt-oss-120b"
 const DEFAULT_MAX_TOKENS = 1_600
 export const HOSTED_MONTHLY_LIMITS = { sprint: 40, pro: 150 } as const
 const MAX_PROVIDER_BYTES = 512 * 1024
 const PROVIDER_TIMEOUT_MS = 25_000
+// gpt-oss always reasons before answering, so give it more time.
+const REASONING_TIMEOUT_MS = 45_000
 const BYOK_RATE_LIMIT = 20
 const BYOK_RATE_WINDOW_MS = 60_000
 const HOSTED_BURST_LIMIT = 10
 const HOSTED_BURST_WINDOW_MS = 60_000
-const STALE_RESERVATION_MS = PROVIDER_TIMEOUT_MS + 60_000
+// Covers a primary attempt, a corrective retry, and a model fallback.
+const STALE_RESERVATION_MS = 3 * 60_000
 const SESSION_COOKIE = "__Host-resumate_session"
 
 const PROVIDER_ENDPOINTS = new Set([
@@ -168,7 +182,7 @@ function adminValues(value = ""): string[] {
     .filter(Boolean)
 }
 
-function isAdminUser(env: AiEnv, user: { id: string; email: string; emailVerifiedAt: number | null }): boolean {
+export function isAdminUser(env: AiEnv, user: { id: string; email: string; emailVerifiedAt: number | null }): boolean {
   const userIdAllowed = adminValues(env.ADMIN_USER_IDS).includes(user.id.toLowerCase())
   const verifiedEmailAllowed = Boolean(user.emailVerifiedAt)
     && adminValues(env.ADMIN_EMAILS).includes(user.email.toLowerCase())
@@ -359,16 +373,16 @@ export async function enforceAiQuota(
   }
 }
 
-export async function readBoundedJson<T>(request: Request): Promise<T> {
+export async function readBoundedJson<T>(request: Request, maximumBytes = MAX_REQUEST_BYTES): Promise<T> {
   const rawLength = request.headers.get("Content-Length")
   if (rawLength) {
     const declaredLength = Number(rawLength)
     if (!Number.isFinite(declaredLength) || declaredLength < 0) throw new RequestError("Invalid Content-Length", 400)
-    if (declaredLength > MAX_REQUEST_BYTES) throw new RequestError("Input too large", 413)
+    if (declaredLength > maximumBytes) throw new RequestError("Input too large", 413)
   }
   if (!request.body) throw new RequestError("Invalid JSON body", 400)
 
-  const bytes = await readBoundedStream(request.body, MAX_REQUEST_BYTES, "Input too large", 413)
+  const bytes = await readBoundedStream(request.body, maximumBytes, "Input too large", 413)
   try {
     return JSON.parse(new TextDecoder().decode(bytes)) as T
   } catch {
@@ -443,9 +457,10 @@ export function aiSettings(body: ClientAiOptions, env: AiEnv): AiSettings | null
   }
 
   if (env.AI) {
-    const requested = env.AI_HOSTED_MODEL?.trim()
-    const model = HOSTED_MODEL_ALLOWLIST.find((candidate) => candidate === requested) || HOSTED_AI_MODEL
-    return { kind: "workers-ai", binding: env.AI, model }
+    const pick = (value: string | undefined) => HOSTED_MODEL_ALLOWLIST.find((candidate) => candidate === value?.trim())
+    const model = pick(env.AI_HOSTED_MODEL) || HOSTED_AI_MODEL
+    const writingModel = pick(env.AI_WRITING_MODEL) || DEFAULT_WRITING_MODEL
+    return { kind: "workers-ai", binding: env.AI, model, writingModel }
   }
 
   const siteKey = env.AI_API_KEY?.trim()
@@ -466,6 +481,54 @@ function withoutThinking(settings: AiSettings, messages: OpenAiMessage[]): OpenA
     : message))
 }
 
+// Prose-heavy tasks use the writing model (gpt-oss-120b by default) with the
+// precise model as an automatic fallback. Exact-quote tasks stay on the
+// precise model. BYOK and external providers are unaffected.
+export function forTask(settings: AiSettings, profile: TaskProfile): AiSettings {
+  if (settings.kind !== "workers-ai" || profile !== "writing") return settings
+  const writing = settings.writingModel
+  if (!writing || writing === settings.model) return settings
+  return { ...settings, model: writing, writingModel: undefined, fallbackModel: settings.model }
+}
+
+export function isReasoningModel(model: string): boolean {
+  return model.startsWith("@cf/openai/gpt-oss-")
+}
+
+async function runWorkersAi(
+  binding: Ai,
+  model: HostedModel,
+  messages: OpenAiMessage[],
+  jsonMode: boolean,
+  temperature: number,
+  maxTokens: number,
+): Promise<string> {
+  const options = { signal: AbortSignal.timeout(isReasoningModel(model) ? REASONING_TIMEOUT_MS : PROVIDER_TIMEOUT_MS), tags: ["resumate", "hosted"] }
+  if (isReasoningModel(model)) {
+    // gpt-oss on Workers AI exposes reasoning effort only through the
+    // Responses input format. Low effort keeps latency close to Qwen3; the
+    // schema text in the prompt and the local validators stand in for JSON mode.
+    const response = await (binding.run as unknown as (model: string, input: unknown, options: unknown) => Promise<unknown>)(model, {
+      input: messages.map(({ role, content }) => ({ role: role === "system" ? "developer" : role, content })),
+      reasoning: { effort: "low" },
+    }, options)
+    return cleanModelText(contentFromWorkersAi(response))
+  }
+  const response = await binding.run(model, {
+    messages: withoutThinking({ kind: "workers-ai", binding, model }, messages),
+    temperature,
+    max_tokens: maxTokens,
+    ...(jsonMode ? {
+      // Qwen's current model-specific types advertise json_schema, but the
+      // generic Workers AI compatibility list has not caught up. Use the
+      // documented json_object envelope until a bound production smoke test
+      // proves schema mode, then always enforce the stricter local validator.
+      response_format: { type: "json_object" as const },
+    } : {}),
+  }, options)
+  return cleanModelText(contentFromWorkersAi(response))
+}
+
 export async function callAI(
   settings: AiSettings,
   messages: OpenAiMessage[],
@@ -474,25 +537,17 @@ export async function callAI(
   schema?: JsonSchema,
   maxTokens = DEFAULT_MAX_TOKENS,
 ): Promise<string> {
-  const prepared = withoutThinking(settings, schema ? withSchemaInstruction(messages, schema) : messages)
+  const withSchema = schema ? withSchemaInstruction(messages, schema) : messages
   if (settings.kind === "workers-ai") {
-    const response = await settings.binding.run(settings.model, {
-      messages: prepared,
-      temperature,
-      max_tokens: maxTokens,
-      ...(jsonMode ? {
-        // Qwen's current model-specific types advertise json_schema, but the
-        // generic Workers AI compatibility list has not caught up. Use the
-        // documented json_object envelope until a bound production smoke test
-        // proves schema mode, then always enforce the stricter local validator.
-        response_format: { type: "json_object" as const },
-      } : {}),
-    }, {
-      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
-      tags: ["resumate", "hosted"],
-    })
-    return cleanModelText(contentFromWorkersAi(response))
+    try {
+      return await runWorkersAi(settings.binding, settings.model, withSchema, jsonMode, temperature, maxTokens)
+    } catch (error) {
+      if (!settings.fallbackModel || settings.fallbackModel === settings.model) throw error
+      console.error(JSON.stringify({ event: "ai_model_fallback", model: settings.model, fallback: settings.fallbackModel, reason: error instanceof Error ? error.message.slice(0, 120) : "unknown" }))
+      return await runWorkersAi(settings.binding, settings.fallbackModel, withSchema, jsonMode, temperature, maxTokens)
+    }
   }
+  const prepared = withoutThinking(settings, withSchema)
 
   const payload: Record<string, unknown> = {
     model: settings.model,

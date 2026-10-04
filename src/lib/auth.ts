@@ -42,7 +42,12 @@ export function loginAccount(email: string, password: string, turnstileToken?: s
 export async function getAuthConfig(): Promise<AuthConfig> {
   const response = await fetch("/api/auth/config", { credentials: "same-origin" })
   if (!response.ok) throw new Error("Account security could not be loaded. Refresh and try again.")
-  const data = await response.json() as Partial<AuthConfig>
+  let data: Partial<AuthConfig>
+  try {
+    data = await response.json() as Partial<AuthConfig>
+  } catch {
+    throw new Error("Account service is temporarily unavailable. Please try again in a moment.")
+  }
   return { turnstileSiteKey: typeof data.turnstileSiteKey === "string" ? data.turnstileSiteKey : null }
 }
 

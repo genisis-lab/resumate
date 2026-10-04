@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import type { PlanId } from "../lib/billing"
 import { navigate } from "../router"
+import { openUpgrade, upgradePromptViewed } from "../lib/analytics"
 
 type Usage = {
   isAdmin: boolean
@@ -14,6 +15,10 @@ type Usage = {
 export function AiActionBudget({ plan, refreshKey = 0 }: { plan: PlanId; refreshKey?: number }) {
   const [usage, setUsage] = useState<Usage | null>(null)
   const [signedOut, setSignedOut] = useState(false)
+
+  useEffect(() => {
+    if (plan === "free") upgradePromptViewed("ai_locked", { plan })
+  }, [plan])
 
   useEffect(() => {
     if (plan === "free") return
@@ -34,7 +39,7 @@ export function AiActionBudget({ plan, refreshKey = 0 }: { plan: PlanId; refresh
   }, [plan, refreshKey])
 
   if (plan === "free") {
-    return <div className="ai-budget"><strong>Hosted AI is a paid feature.</strong><span>Local ATS checks remain available on Free.</span><button className="text-button" onClick={() => navigate("/pricing")}>See paid plans</button></div>
+    return <div className="ai-budget"><strong>Hosted AI is a paid feature.</strong><span>Local ATS checks remain available on Free.</span><button className="text-button" onClick={() => openUpgrade("ai_locked", { plan })}>See paid plans</button></div>
   }
   if (signedOut) {
     return <div className="ai-budget"><strong>One hosted request uses 1 AI action.</strong><span>Sign in to use and view your allowance.</span><button className="text-button" onClick={() => navigate("/login")}>Sign in</button></div>

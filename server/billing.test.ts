@@ -27,6 +27,7 @@ class SqliteD1 {
     this.sqlite.exec(readFileSync(join(migrationRoot, "0002_ai_billing.sql"), "utf8"))
     this.sqlite.exec(readFileSync(join(migrationRoot, "0003_password_versioning.sql"), "utf8"))
     this.sqlite.exec(readFileSync(join(migrationRoot, "0004_admin_analytics.sql"), "utf8"))
+    this.sqlite.exec(readFileSync(join(migrationRoot, "0005_funnel_usage_sync.sql"), "utf8"))
     this.sqlite.prepare(
       `INSERT INTO users
        (id, email, name, password_hash, password_salt, email_verified_at, plan, created_at, updated_at)

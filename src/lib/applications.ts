@@ -1,4 +1,5 @@
 import { uid } from "./id"
+import { notifyStoreChanged, recordDeletion } from "./changes"
 
 export type ApplicationStage = "saved" | "applied" | "interview" | "offer" | "closed"
 
@@ -60,6 +61,12 @@ export function listApplications(): JobApplication[] {
 
 function persist(items: JobApplication[]): void {
   localStorage.setItem(KEY, JSON.stringify(items.slice(0, 100)))
+  notifyStoreChanged()
+}
+
+// Used by sync to replace the list with a merged copy.
+export function replaceApplications(value: unknown): void {
+  persist(Array.isArray(value) ? value.flatMap((item) => normalize(item) || []).slice(0, 100) : [])
 }
 
 export function saveApplication(input: Omit<JobApplication, "id" | "createdAt" | "updatedAt"> & { id?: string }): JobApplication {
@@ -78,6 +85,7 @@ export function saveApplication(input: Omit<JobApplication, "id" | "createdAt" |
 }
 
 export function deleteApplication(id: string): void {
+  recordDeletion(id)
   persist(listApplications().filter((item) => item.id !== id))
 }
 

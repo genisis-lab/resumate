@@ -2,6 +2,8 @@ import { useEffect, useState } from "react"
 import { Density, Resume } from "../types/resume"
 import { createEmptyResume } from "../data/sample"
 import { isTemplateId } from "../templates/registry"
+import { notifyStoreChanged, recordDeletion } from "./changes"
+import { isResumeLanguage } from "./resumeLanguage"
 
 const DENSITIES: readonly Density[] = ["compact", "cozy", "roomy"]
 
@@ -30,6 +32,7 @@ export function normalizeResume(r: any): Resume {
       fontScale: Number.isFinite(fontScale) ? Math.min(1.15, Math.max(0.8, fontScale)) : base.settings.fontScale,
       density: DENSITIES.includes(s.density) ? s.density : undefined,
       paperSize: s.paperSize === "a4" ? "a4" : undefined,
+      language: isResumeLanguage(s.language) && s.language !== "en" ? s.language : undefined,
       sectionOrder:
         Array.isArray(s.sectionOrder) && s.sectionOrder.length
           ? s.sectionOrder
@@ -69,7 +72,7 @@ function safeRemove(key: string): void {
   }
 }
 
-interface StoreShape {
+export interface StoreShape {
   resumes: Resume[]
 }
 
@@ -97,7 +100,9 @@ export function loadStore(): StoreShape {
 }
 
 export function persistStore(store: StoreShape): boolean {
-  return safeSet(STORE_KEY, JSON.stringify(store))
+  const ok = safeSet(STORE_KEY, JSON.stringify(store))
+  if (ok) notifyStoreChanged()
+  return ok
 }
 
 export function getActiveId(): string | null {
@@ -108,9 +113,16 @@ export function setActiveId(id: string): void {
   safeSet(ACTIVE_KEY, id)
 }
 
+function sameContent(a: Resume, b: Resume): boolean {
+  return JSON.stringify({ ...a, updatedAt: 0 }) === JSON.stringify({ ...b, updatedAt: 0 })
+}
+
+// Writes only real changes, so opening or switching resumes never bumps
+// updatedAt (which sync uses to pick the newest copy).
 export function saveResume(resume: Resume): boolean {
   const store = loadStore()
   const idx = store.resumes.findIndex((r) => r.id === resume.id)
+  if (idx >= 0 && sameContent(store.resumes[idx], normalizeResume(resume))) return true
   const updated = { ...resume, updatedAt: Date.now() }
   if (idx >= 0) store.resumes[idx] = updated
   else store.resumes.push(updated)
@@ -118,6 +130,7 @@ export function saveResume(resume: Resume): boolean {
 }
 
 export function deleteResume(id: string): void {
+  recordDeletion(id)
   const store = loadStore()
   store.resumes = store.resumes.filter((r) => r.id !== id)
   if (store.resumes.length === 0) {

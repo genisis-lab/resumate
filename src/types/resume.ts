@@ -98,6 +98,7 @@ export interface CustomSection {
 }
 
 export type Density = "compact" | "cozy" | "roomy"
+export type ResumeLanguage = "en" | "es" | "fr"
 export type PaperSize = "letter" | "a4"
 
 export interface ResumeSettings {
@@ -108,6 +109,8 @@ export interface ResumeSettings {
   density?: Density
   // Optional page size for preview and PDF export. Undefined behaves like "letter".
   paperSize?: PaperSize
+  // Language of the fixed headings and labels. Undefined behaves like "en".
+  language?: ResumeLanguage
   sectionOrder: SectionKey[]
   hidden: SectionKey[]
 }

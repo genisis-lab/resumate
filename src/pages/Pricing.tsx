@@ -2,6 +2,8 @@ import { useEffect, useState } from "react"
 import { PREMIUM_TEMPLATE_COUNT, TEMPLATES } from "../templates/registry"
 import { BILLING_STATE, beginUpgrade, type PlanId } from "../lib/billing"
 import { navigate } from "../router"
+import { trackEvent, upgradeSourceForCheckout } from "../lib/analytics"
+import { SiteFooter } from "../components/SiteFooter"
 
 const PLANS = [
   {
@@ -10,7 +12,7 @@ const PLANS = [
     price: "$0",
     cadence: "forever",
     description: "Build one strong resume and see where it needs work.",
-    features: ["1 active resume", "3 ATS-safe templates", "3 PDF or Word exports each month", "5 private local ATS checks each month", "Hosted AI analysis and writing not included"],
+    features: ["1 active resume", "3 ATS-safe templates", "3 PDF or Word exports each month", "5 private local ATS checks each month", "Resume headings in English, Spanish, or French", "Hosted AI analysis and writing not included"],
     action: "Create free account",
     onClick: () => navigate("/signup"),
   },
@@ -26,8 +28,8 @@ const PLANS = [
       "40 Cloudflare-hosted AI actions during the 30-day pass",
       "AI resume review, job match, tailoring, rewriting, cover letters, and interview prep",
       "LinkedIn optimizer, job decoder, and follow-up and thank-you emails",
+      "AI translation of your resume into Spanish, French, or English",
       `All ${TEMPLATES.length} templates, including ${PREMIUM_TEMPLATE_COUNT} Premium designs, and unlimited PDF/Word exports`,
-      "Interview tools and 30-day cloud sync when available",
     ],
     action: "Get launch notice",
     href: "mailto:support@builtwai.com?subject=ResuMate%20Career%20Sprint%20launch",
@@ -43,9 +45,9 @@ const PLANS = [
       "Unlimited resumes, jobs, and applications",
       "Hosted parser testing when available",
       "150 Cloudflare-hosted AI actions each month",
-      "Every AI tool: resume review, LinkedIn optimizer, job decoder, cover letters, and interview prep",
+      "Every AI tool: resume review, LinkedIn optimizer, job decoder, translation, cover letters, and interview prep",
       `All ${TEMPLATES.length} templates and unlimited PDF/Word exports`,
-      "Version history and multi-device sync when available",
+      "Optional end-to-end encrypted sync across your devices",
       "Priority support and 25 active share links",
     ],
     action: "Get launch notice",
@@ -59,7 +61,8 @@ const COMPARISON = [
   { feature: "PDF or Word exports", free: "3 / month", sprint: "Unlimited", pro: "Unlimited" },
   { feature: "Local ATS checks", free: "5 / month", sprint: "Expanded", pro: "Expanded" },
   { feature: "Hosted AI job match and writing", free: "Not included", sprint: "40 actions / 30 days", pro: "150 actions / month" },
-  { feature: "Cloud sync", free: "—", sprint: "30 days planned", pro: "Planned" },
+  { feature: "Resume languages (EN, ES, FR)", free: "Headings", sprint: "Headings + AI translation", pro: "Headings + AI translation" },
+  { feature: "Encrypted sync across devices", free: "—", sprint: "—", pro: "Optional" },
   { feature: "Version history", free: "Current", sprint: "30 days planned", pro: "1 year planned" },
 ]
 
@@ -97,6 +100,14 @@ const FAQS = [
     answer: "When payments launch, first purchases will have a 14-day refund window and subscription renewals a 7-day window, subject to stronger rights under local law.",
   },
   {
+    question: "Can I make my resume in Spanish or French?",
+    answer: "Yes. Every plan can switch a resume's section headings and labels to Spanish or French. Career Sprint and Pro can also translate the content with AI into a new copy, using one AI action; names, employers, schools, contact details, and numbers are kept exactly as written, and your original stays unchanged.",
+  },
+  {
+    question: "How does Pro sync keep my resumes private?",
+    answer: "Sync is off until you turn it on. Your browser encrypts your resumes, saved job posts, and applications with a passphrase only you know before anything is uploaded, so ResuMate stores ciphertext it cannot read. If you forget the passphrase we cannot recover the synced copy, but resumes saved in each browser are unaffected.",
+  },
+  {
     question: "Is my resume used to train AI models?",
     answer: "Ordinary editing and local ATS checks remain in your browser. When a paid user starts a hosted AI action, ResuMate sends only the resume and job text needed for that request through its protected Cloudflare Workers AI boundary.",
   },
@@ -105,6 +116,10 @@ const FAQS = [
 export function Pricing() {
   const [checkoutPlan, setCheckoutPlan] = useState<PlanId | null>(null)
   const [checkoutError, setCheckoutError] = useState("")
+  useEffect(() => {
+    const source = upgradeSourceForCheckout()
+    trackEvent("pricing_view", source ? { source } : {})
+  }, [])
   useEffect(() => {
     const script = document.createElement("script")
     script.id = "pricing-faq-schema"
@@ -126,7 +141,7 @@ export function Pricing() {
     setCheckoutError("")
     setCheckoutPlan(plan)
     try {
-      await beginUpgrade(plan)
+      await beginUpgrade(plan, upgradeSourceForCheckout())
     } catch (error) {
       setCheckoutError(error instanceof Error ? error.message : "Checkout is temporarily unavailable.")
       setCheckoutPlan(null)
@@ -253,13 +268,7 @@ export function Pricing() {
         <p>No card is required for the free plan.</p>
       </section>
 
-      <footer className="landing-footer">
-        <nav className="footer-links" aria-label="Legal">
-          <a className="footer-link" href="/privacy">Privacy</a>
-          <a className="footer-link" href="/tos">Terms</a>
-          <a className="footer-link" href="/refund">Refunds</a>
-        </nav>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }

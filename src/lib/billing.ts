@@ -18,7 +18,7 @@ export const MONTHLY_AI_ACTIONS: Record<PlanId, number> = {
   pro: 150,
 }
 
-export async function beginUpgrade(plan: Exclude<PlanId, "free">): Promise<void> {
+export async function beginUpgrade(plan: Exclude<PlanId, "free">, source?: string): Promise<void> {
   if (!BILLING_STATE.checkoutEnabled || BILLING_STATE.activeProvider !== "whop") {
     throw new Error("Checkout is not open yet.")
   }
@@ -26,7 +26,7 @@ export async function beginUpgrade(plan: Exclude<PlanId, "free">): Promise<void>
     method: "POST",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ plan }),
+    body: JSON.stringify(source ? { plan, source } : { plan }),
   })
   if (!response.ok) throw new Error(response.status === 401 ? "Sign in before upgrading." : "Checkout is temporarily unavailable.")
   const data: unknown = await response.json()

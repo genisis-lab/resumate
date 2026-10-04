@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Resume } from "../types/resume"
+import { WORKSPACE_REPLACED_EVENT } from "../lib/changes"
 import {
   getActiveId,
   loadStore,
@@ -95,6 +96,23 @@ export function useResume() {
     saveResume(norm)
     setResumeState(norm)
     resetHistory()
+  }, [resetHistory])
+
+  // Sync replaced stored resumes: reload the open one if it changed.
+  useEffect(() => {
+    const onReplaced = (event: Event) => {
+      const ids = (event as CustomEvent<{ ids?: string[] }>).detail?.ids || []
+      setResumeState((current) => {
+        if (!ids.includes(current.id)) return current
+        const store = loadStore()
+        const next = store.resumes.find((r) => r.id === current.id) ?? store.resumes[0]
+        setActiveId(next.id)
+        return normalizeResume(next)
+      })
+      resetHistory()
+    }
+    window.addEventListener(WORKSPACE_REPLACED_EVENT, onReplaced)
+    return () => window.removeEventListener(WORKSPACE_REPLACED_EVENT, onReplaced)
   }, [resetHistory])
 
   const undo = useCallback(() => {

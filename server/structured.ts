@@ -13,6 +13,13 @@ function isInvalid<T>(value: T | { invalid: string }): value is { invalid: strin
   return Boolean(value && typeof value === "object" && "invalid" in (value as object))
 }
 
+// The corrective retry runs on the fallback model when one is configured, so a
+// writing model that keeps missing the schema gets a second opinion.
+function retrySettings(settings: AiSettings): AiSettings {
+  if (settings.kind !== "workers-ai" || !settings.fallbackModel) return settings
+  return { ...settings, model: settings.fallbackModel, fallbackModel: undefined }
+}
+
 // Ask for structured JSON, validate it, and make one corrective retry when the
 // reply is malformed or ungrounded. Provider errors are not retried here.
 export async function generateStructured<T>(settings: AiSettings, request: StructuredRequest<T>): Promise<{ value: T } | { error: string }> {
@@ -20,7 +27,7 @@ export async function generateStructured<T>(settings: AiSettings, request: Struc
   let messages = request.messages
   let reason = "AI returned an invalid structured response"
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const output = await callAI(settings, messages, true, attempt ? Math.min(temperature, 0.2) : temperature, request.schema, request.maxTokens)
+    const output = await callAI(attempt ? retrySettings(settings) : settings, messages, true, attempt ? Math.min(temperature, 0.2) : temperature, request.schema, request.maxTokens)
     const parsed = parseJsonObject(output)
     const result = parsed ? request.validate(parsed) : { invalid: "The reply was not a single JSON object." }
     if (!isInvalid(result)) return { value: result }

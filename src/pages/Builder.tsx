@@ -1,11 +1,13 @@
-import React, { useMemo, useRef, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import {
   ChevronDown, Copy, Download, Eraser, FileDown, FileJson, FilePlus2, FileText, FileType, FileUp, FolderInput,
   Image as ImageIcon, LayoutTemplate, Lock, Palette, PencilLine, Redo2, Save, ScanSearch, Share2, Sparkles,
-  SpellCheck, Trash2, Undo2, Wand2, ArchiveRestore, BookOpen, ChevronRight,
+  SpellCheck, Trash2, Undo2, Wand2, ArchiveRestore, BookOpen, ChevronRight, Languages,
 } from "lucide-react"
-import { Density, PaperSize, Resume, TemplateId } from "../types/resume"
+import { Density, PaperSize, Resume, ResumeLanguage, TemplateId } from "../types/resume"
+import { languageLabel, languageOf, RESUME_LANGUAGES } from "../lib/resumeLanguage"
+import { aiTranslateResume } from "../lib/ai"
 import { ResumePreview, paperSizeOf } from "../templates/ResumePreview"
 import { EditorForm } from "../components/EditorForm"
 import { ShareModal } from "../components/ShareModal"
@@ -22,10 +24,11 @@ import { fromJsonResume } from "../lib/jsonResume"
 import { navigate } from "../router"
 import { BottomSheet } from "../components/BottomSheet"
 import type { PlanId } from "../lib/billing"
-import { canUseTemplate, usageSnapshot, FREE_PLAN_LIMITS } from "../lib/usage"
+import { canUseTemplate, syncFreeUsage, usageSnapshot, FREE_PLAN_LIMITS } from "../lib/usage"
 import { TEMPLATES, templateMeta } from "../templates/registry"
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Popover, PopoverContent, PopoverTrigger } from "../components/ui/menu"
 import { confirmDialog, promptDialog } from "../components/ui/dialogs"
+import { openUpgrade, trackEvent, upgradePromptViewed } from "../lib/analytics"
 
 const DENSITIES: { id: Density; label: string }[] = [
   { id: "compact", label: "Compact" },
@@ -46,13 +49,16 @@ const ACCENTS: { color: string; name: string }[] = [
 
 type SetResume = (r: Resume | ((p: Resume) => Resume)) => void
 
-function DesignControls({ resume, setSettings, fitting, onFit, pages }: {
+function DesignControls({ resume, setSettings, fitting, onFit, pages, onTranslate, translating }: {
   resume: Resume
   setSettings: (patch: Partial<Resume["settings"]>) => void
   fitting: boolean
   onFit: () => void
   pages: number
+  onTranslate: (language: ResumeLanguage) => void
+  translating: ResumeLanguage | null
 }) {
+  const language = languageOf(resume)
   const accent = resume.settings.accent
   const custom = !ACCENTS.some((item) => item.color === accent)
   return (
@@ -96,6 +102,22 @@ function DesignControls({ resume, setSettings, fitting, onFit, pages }: {
         <div className="segmented" role="radiogroup" aria-label="Paper size">
           {(Object.keys(PAGE_SIZES) as PaperSize[]).map((size) => (
             <button key={size} type="button" role="radio" aria-checked={paperSizeOf(resume) === size} onClick={() => setSettings({ paperSize: size === "a4" ? "a4" : undefined })}>{PAGE_SIZES[size].label}</button>
+          ))}
+        </div>
+      </div>
+      <div className="design-row">
+        <span className="design-label">Resume language</span>
+        <div className="segmented" role="radiogroup" aria-label="Resume language for headings and labels">
+          {RESUME_LANGUAGES.map((item) => (
+            <button key={item.id} type="button" role="radio" aria-checked={language === item.id} onClick={() => setSettings({ language: item.id === "en" ? undefined : item.id })}>{item.label}</button>
+          ))}
+        </div>
+        <span className="design-hint">Changes section headings and labels. Your text stays as written.</span>
+        <div className="design-translate">
+          {RESUME_LANGUAGES.filter((item) => item.id !== language).map((item) => (
+            <button key={item.id} type="button" className="btn-ghost small" disabled={translating !== null} onClick={() => onTranslate(item.id)}>
+              <Languages size={14} aria-hidden="true" /> {translating === item.id ? "Translating…" : `Translate to ${item.label}`}
+            </button>
           ))}
         </div>
       </div>
@@ -161,6 +183,14 @@ export function Builder({
   metricsRef.current = metrics
   const [fitting, setFitting] = useState(false)
   const [, refreshUsage] = useState(0)
+  const [translating, setTranslating] = useState<ResumeLanguage | null>(null)
+  // Signed-in Free accounts keep their export count on the server.
+  useEffect(() => {
+    if (!planReady || plan !== "free") return
+    let active = true
+    void syncFreeUsage(plan).then((changed) => { if (active && changed) refreshUsage((value) => value + 1) })
+    return () => { active = false }
+  }, [plan, planReady])
   const store = loadStore()
   const comp = useMemo(() => completeness(resume), [resume])
   const flags = useMemo(() => qualityFlags(resume), [resume])
@@ -176,9 +206,10 @@ export function Builder({
   function chooseTemplate(id: TemplateId) {
     setSettings({ template: id })
     if (!canUseTemplate(plan, id)) {
+      trackEvent("template_previewed", { template: id, plan })
       toast.info(`${templateMeta(id).label} is a Premium template`, {
         description: "Preview it free on your resume. Upgrade to download it as a PDF.",
-        action: { label: "See plans", onClick: () => navigate("/pricing") },
+        action: { label: "See plans", onClick: () => openUpgrade("builder_template", { template: id, plan }) },
       })
     }
   }
@@ -244,7 +275,8 @@ export function Builder({
   }
 
   function upgradeToast(message: string) {
-    toast.info(message, { action: { label: "See plans", onClick: () => navigate("/pricing") } })
+    upgradePromptViewed("builder_banner", { plan })
+    toast.info(message, { action: { label: "See plans", onClick: () => openUpgrade("builder_banner", { plan }) } })
   }
 
   function onDuplicate() {
@@ -256,6 +288,34 @@ export function Builder({
     if (copy) {
       switchResume(copy.id)
       toast.success(`Created “${resumeLabel(copy)}”`)
+    }
+  }
+
+  async function onTranslate(language: ResumeLanguage) {
+    if (plan === "free") {
+      upgradePromptViewed("languages", { plan })
+      toast.info("AI translation is part of Career Sprint and Pro", {
+        description: "You can still switch the headings to Spanish or French for free.",
+        action: { label: "See plans", onClick: () => openUpgrade("languages", { plan }) },
+      })
+      return
+    }
+    const label = languageLabel(language)
+    const ok = await confirmDialog({
+      title: `Translate this resume into ${label}?`,
+      description: `ResuMate creates a new copy, “${resume.name.replace(/\s*\((English|Español|Français)\)$/u, "")} (${label})”, with your summary, bullets, titles, and skills translated. Names, employers, schools, contact details, and numbers stay exactly as written, and your original is unchanged. Uses 1 AI action.`,
+      confirmLabel: `Translate to ${label}`,
+    })
+    if (!ok) return
+    setTranslating(language)
+    try {
+      const copy = await aiTranslateResume(resume, language)
+      replaceResume(copy)
+      toast.success(`Created “${resumeLabel(copy)}”`, { description: "Review the translation before you send it. Proper nouns and numbers were kept as written." })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Translation failed. Your resume has not changed.")
+    } finally {
+      setTranslating(null)
     }
   }
 
@@ -316,8 +376,7 @@ export function Builder({
   }
 
   function runWordExport() {
-    exportResumeWord(resume, plan)
-    refreshUsage((value) => value + 1)
+    void exportResumeWord(resume, plan).finally(() => refreshUsage((value) => value + 1))
   }
 
   // Shrink font + tighten density until the resume fits on a single page.
@@ -410,7 +469,7 @@ export function Builder({
               </button>
             </PopoverTrigger>
             <PopoverContent className="design-popover">
-              <DesignControls resume={resume} setSettings={setSettings} fitting={fitting} onFit={() => void fitToOnePage()} pages={pages} />
+              <DesignControls resume={resume} setSettings={setSettings} fitting={fitting} onFit={() => void fitToOnePage()} pages={pages} onTranslate={(language) => void onTranslate(language)} translating={translating} />
             </PopoverContent>
           </Popover>
         </div>
@@ -546,7 +605,7 @@ export function Builder({
             <div className="premium-banner no-print" role="status">
               <Lock size={16} aria-hidden="true" />
               <span><strong>{template.label}</strong> is a Premium template. Preview it free — upgrade to download it.</span>
-              <button type="button" className="btn-primary small" onClick={() => navigate("/pricing")}>See plans</button>
+              <button type="button" className="btn-primary small" onClick={() => openUpgrade("builder_template", { template: resume.settings.template, plan })}>See plans</button>
             </div>
           )}
           <PaperFrame size={paperSizeOf(resume)} showPageBreaks onMetrics={setMetrics} className="preview-frame">
@@ -601,7 +660,7 @@ export function Builder({
         </section>
         <section className="sheet-section" aria-labelledby="design-controls-title">
           <h3 id="design-controls-title">Design</h3>
-          <DesignControls resume={resume} setSettings={setSettings} fitting={fitting} onFit={() => void fitToOnePage()} pages={pages} />
+          <DesignControls resume={resume} setSettings={setSettings} fitting={fitting} onFit={() => void fitToOnePage()} pages={pages} onTranslate={(language) => void onTranslate(language)} translating={translating} />
         </section>
 
         <section className="sheet-section" aria-labelledby="editing-tools-title">

@@ -1,7 +1,7 @@
 import { unwrapWebhook } from "@whop/sdk/helpers"
 
 import { MAX_REQUEST_BYTES, json, text } from "./ai-proxy"
-import { trackConversion } from "./analytics"
+import { trackConversion, upgradeSource, type UpgradeSource } from "./analytics"
 
 export type InternalPaidPlan = "sprint" | "pro"
 
@@ -82,6 +82,7 @@ export async function createWhopCheckout(
   request: Request,
   env: BillingEnv,
   plan: InternalPaidPlan,
+  source: UpgradeSource | null = null,
 ): Promise<Response> {
   const config = whopConfig(env)
   const apiKey = env.WHOP_API_KEY?.trim() || ""
@@ -121,7 +122,8 @@ export async function createWhopCheckout(
     return text("Too many checkout attempts. Try again later.", 429, { "Retry-After": String(retryAfter) })
   }
 
-  await trackConversion(env, "checkout_started", user.id, { plan })
+  const attribution: Record<string, string> = source ? { plan, source } : { plan }
+  await trackConversion(env, "checkout_started", user.id, attribution)
 
   const planId = config.planIds[plan]
   const origin = new URL(request.url).origin
@@ -140,6 +142,7 @@ export async function createWhopCheckout(
         resumate_user_id: user.id,
         resumate_plan: plan,
         resumate_product_id: config.productId,
+        ...(source ? { resumate_source: source } : {}),
       },
       mode: "payment",
       redirect_url: `${origin}/account?checkout=return`,
@@ -164,7 +167,7 @@ export async function createWhopCheckout(
     || typeof purchaseUrl !== "string" || !safeWhopPurchaseUrl(purchaseUrl)) {
     return text("Checkout returned an invalid response", 502)
   }
-  await trackConversion(env, "checkout_created", user.id, { plan })
+  await trackConversion(env, "checkout_created", user.id, attribution)
   return json({
     provider: "whop",
     checkoutId,
@@ -227,6 +230,8 @@ interface NormalizedMembershipEvent {
   cancelAtPeriodEnd: number
   currentPeriodStart: number | null
   currentPeriodEnd: number | null
+  /** Upgrade prompt that led to the checkout, for funnel attribution only. */
+  source: UpgradeSource | null
 }
 
 function metadataString(sources: Array<Record<string, unknown> | null>, key: string): string | null {
@@ -300,6 +305,7 @@ export function normalizeWhopMembershipEvent(event: unknown, config: WhopConfig)
     cancelAtPeriodEnd,
     currentPeriodStart,
     currentPeriodEnd,
+    source: upgradeSource(metadataString(metadataSources, "resumate_source")),
   }
 }
 
@@ -349,6 +355,7 @@ export async function processWhopWebhook(request: Request, env: BillingEnv): Pro
     cancelAtPeriodEnd,
     currentPeriodStart,
     currentPeriodEnd,
+    source,
   } = normalized
   const user = await env.DB.prepare("SELECT id FROM users WHERE id = ?").bind(userId).first<{ id: string }>()
   if (!user) return text("Webhook account mapping was not found", 409)
@@ -406,7 +413,7 @@ export async function processWhopWebhook(request: Request, env: BillingEnv): Pro
       ).bind(eventId),
     ])
     if (eventType === "membership.activated" && grantedPlan !== "free") {
-      await trackConversion(env, "purchase_activated", userId, { plan: grantedPlan })
+      await trackConversion(env, "purchase_activated", userId, source ? { plan: grantedPlan, source } : { plan: grantedPlan })
     }
   } catch (error) {
     await env.DB.prepare(

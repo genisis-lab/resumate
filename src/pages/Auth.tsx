@@ -81,11 +81,11 @@ export function AuthPage({ mode, onAuthenticated }: { mode: "login" | "signup"; 
         <span className="eyebrow">Your ResuMate account</span>
         <h1>{signup ? "Keep your career workspace ready." : "Welcome back."}</h1>
         <p>{signup
-          ? "Create a verified account for plan access and future sync options. Your existing browser resumes stay exactly where they are."
+          ? "Create a verified account for paid plans and optional encrypted sync. Your existing browser resumes stay exactly where they are."
           : "Sign in to manage your account and upgrade path. Resume editing continues to work from this browser."}</p>
         <div className="auth-assurance">
-          <strong>Browser-first by design</strong>
-          <p>Creating an account does not upload your locally saved resumes. Cloud sync is not active yet.</p>
+          <strong>Private by design</strong>
+          <p>Creating an account does not upload your locally saved resumes. Pro can turn on end to end encrypted sync, protected by a passphrase only you know.</p>
         </div>
       </section>
       <section className="auth-panel" aria-labelledby="auth-title">
